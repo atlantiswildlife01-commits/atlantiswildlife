@@ -1081,12 +1081,12 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
     """
     Video priority (public domain first, Pexels last):
       1. Article direct MP4
-      2. NASA Image Library        (public domain)
-      3. USFWS Digital Library     (public domain)
-      4. NPS National Park Service (public domain, yt-dlp)
-      5. NOAA Ocean Exploration    (public domain, yt-dlp)
-      6. USGS ScienceBase          (public domain)
-      7. Wikimedia Commons         (CC licensed)
+      2. USFWS Digital Library     (most reliable wildlife govt source)
+      3. NPS National Park Service (national park wildlife, yt-dlp)
+      4. NOAA Ocean Exploration    (marine only, yt-dlp)
+      5. USGS ScienceBase          (wildlife science)
+      6. Wikimedia Commons         (CC licensed)
+      7. NASA Image Library        (wildlife filtered — last govt attempt)
       8. Pixabay                   (CC0, if key available)
       9. Pexels                    (last fallback)
     """
@@ -1105,42 +1105,42 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
         if path:
             return path
 
-    # 2. NASA — public domain, good quality wildlife/nature
-    print(f"      Trying NASA...")
-    path = fetch_nasa_video(video_keyword)
-    if path:
-        return path
-
-    # 3. USFWS — best US government wildlife library
+    # 2. USFWS — best US government wildlife library
     print(f"      Trying USFWS...")
     path = fetch_usfws_video(video_keyword)
     if path:
         return path
 
-    # 4. NPS — Yellowstone, Everglades, national park wildlife
+    # 3. NPS — Yellowstone, Everglades, national park wildlife
     print(f"      Trying NPS...")
     path = fetch_nps_video(video_keyword)
     if path:
         return path
 
-    # 5. NOAA — deep sea, marine, ocean life
+    # 4. NOAA — deep sea, marine, ocean life (marine keywords only)
     is_marine = any(w in video_keyword.lower() for w in
                     ["ocean", "marine", "sea", "whale", "shark", "fish", "coral", "deep"])
     if is_marine:
-        print(f"      Trying NOAA (marine keyword)...")
+        print(f"      Trying NOAA (marine)...")
         path = fetch_noaa_video(video_keyword)
         if path:
             return path
 
-    # 6. USGS — bears, salmon, polar wildlife
+    # 5. USGS — bears, salmon, polar wildlife
     print(f"      Trying USGS...")
     path = fetch_usgs_video(video_keyword)
     if path:
         return path
 
-    # 7. Wikimedia Commons — CC licensed real wildlife clips
+    # 6. Wikimedia Commons — CC licensed real wildlife clips
     print(f"      Trying Wikimedia...")
     path = fetch_wikimedia_video(video_keyword)
+    if path:
+        return path
+
+    # 7. NASA — wildlife strictly filtered (last govt attempt)
+    print(f"      Trying NASA (filtered)...")
+    path = fetch_nasa_video(video_keyword)
     if path:
         return path
 
