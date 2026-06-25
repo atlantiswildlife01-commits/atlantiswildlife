@@ -712,15 +712,122 @@ def fetch_pexels_video(keyword: str) -> str | None:
     return None
 
 
-def fetch_wildlife_video(keyword: str, source: str = "") -> str | None:
-    """Wildlife video — Pexels primary source"""
+def fetch_wikimedia_video(keyword: str) -> str | None:
+    """Wikimedia Commons — CC-licensed wildlife videos (direct MP4)"""
+    import re as _re
+    try:
+        # Search Commons for wildlife video files
+        search = requests.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={
+                "action": "query", "list": "search", "format": "json",
+                "srsearch": f"{keyword} wildlife filetype:webm OR filetype:ogv OR filetype:mp4",
+                "srnamespace": "6", "srlimit": 8,
+            }, timeout=10
+        )
+        results = search.json().get("query", {}).get("search", [])
+        video_titles = [
+            r["title"] for r in results
+            if any(r["title"].lower().endswith(e) for e in [".webm", ".ogv", ".mp4"])
+        ]
+        if not video_titles:
+            return None
+        # Get direct file URL
+        info = requests.get(
+            "https://commons.wikimedia.org/w/api.php",
+            params={"action": "query", "titles": video_titles[0],
+                    "prop": "imageinfo", "iiprop": "url|size|mediatype",
+                    "format": "json"},
+            timeout=10
+        )
+        pages = info.json().get("query", {}).get("pages", {})
+        for page in pages.values():
+            ii = page.get("imageinfo", [{}])[0]
+            url  = ii.get("url", "")
+            size = ii.get("size", 0)
+            if url and size > 500_000:   # skip tiny clips < 500KB
+                print(f"      Wikimedia video: {url[-50:]}")
+                r = requests.get(url, timeout=90, stream=True,
+                                 headers={"User-Agent": "AtlantisWildlifeBot/1.0"})
+                path = os.path.join(tempfile.gettempdir(),
+                                    f"wmv_{int(time.time())}.mp4")
+                with open(path, "wb") as f:
+                    for chunk in r.iter_content(8192):
+                        f.write(chunk)
+                size_mb = os.path.getsize(path) // 1024 // 1024
+                print(f"      Wikimedia downloaded: {size_mb}MB")
+                return path
+    except Exception as e:
+        print(f"      Wikimedia video error: {e}")
+    return None
+
+
+def fetch_article_video(article_url: str) -> str | None:
+    """Try to extract direct MP4 from news article (og:video / video src tags)"""
+    if not article_url or not article_url.startswith("http"):
+        return None
+    import re as _re
+    try:
+        resp = requests.get(article_url, timeout=10,
+                            headers={"User-Agent": "Mozilla/5.0 AtlantisWildlifeBot"})
+        html = resp.text
+        # og:video meta tag
+        m = _re.search(r'<meta[^>]+property=["\']og:video["\'][^>]+content=["\']([^"\']+)["\']', html)
+        if not m:
+            m = _re.search(r'<meta[^>]+content=["\']([^"\']+\.mp4[^"\']*)["\']', html)
+        if not m:
+            m = _re.search(r'["\']([^"\']+\.mp4)["\']', html)
+        url = m.group(1) if m else ""
+        if url and url.startswith("http"):
+            print(f"      Article video found: {url[:60]}")
+            r = requests.get(url, timeout=90, stream=True,
+                             headers={"User-Agent": "AtlantisWildlifeBot/1.0"})
+            path = os.path.join(tempfile.gettempdir(),
+                                f"artv_{int(time.time())}.mp4")
+            with open(path, "wb") as f:
+                for chunk in r.iter_content(8192):
+                    f.write(chunk)
+            if os.path.getsize(path) > 500_000:
+                return path
+            os.remove(path)
+    except Exception as e:
+        print(f"      Article video error: {e}")
+    return None
+
+
+def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") -> str | None:
+    """
+    Video priority:
+      1. Article direct MP4 (from source URL)
+      2. Wikimedia Commons CC video
+      3. Pexels (fallback only)
+    """
     source_lower = source.lower()
     video_keyword = keyword
     for key, val in WILDLIFE_VIDEO_KEYWORDS.items():
         if key in source_lower:
             video_keyword = val
             break
-    print(f"      Searching wildlife footage: '{video_keyword}'")
+
+    print(f"      Searching wildlife footage: '{video_keyword}' (source: {source})")
+
+    # 1. Try article's own video
+    if article_url:
+        path = fetch_article_video(article_url)
+        if path:
+            return path
+
+    # 2. Wikimedia Commons
+    path = fetch_wikimedia_video(video_keyword)
+    if path:
+        return path
+    if video_keyword != keyword:
+        path = fetch_wikimedia_video(keyword)
+        if path:
+            return path
+
+    # 3. Pexels fallback
+    print(f"      Pexels fallback...")
     path = fetch_pexels_video(video_keyword)
     if path:
         return path
@@ -728,7 +835,6 @@ def fetch_wildlife_video(keyword: str, source: str = "") -> str | None:
         path = fetch_pexels_video(keyword)
         if path:
             return path
-    # Generic wildlife fallback
     return fetch_pexels_video("wildlife animal nature")
 
 
@@ -743,53 +849,55 @@ def generate_narration(news_item: dict, headline: str, summary: str) -> str:
     is_rt  = any(s in source for s in REALTIME_SOURCES)
 
     if is_rt:
-        style = (
-            "YE REAL WILDLIFE OBSERVATION HAI — abhi spotted kiya gaya.\n"
-            "Tone: 'Abhi is waqt...', 'Aaj...', 'Is exact moment mein...'\n"
-            "Excitement + urgency — viewers ko feel ho ki ye ABHI ho raha hai.\n"
-            "Animal ka naam, location, behavior detail mein batao."
+        opening_style = (
+            "Ye ek REAL wildlife observation hai — abhi is waqt captured.\n"
+            "Open with scene: 'Yahan... is jagah pe... abhi kuch aisa hua jo...' \n"
+            "Urgency + wonder — jaise NatGeo ka cameraman abhi wahan maujood ho.\n"
+            "Animal, location, behavior — poetic lekin precise."
         )
     else:
-        style = (
-            "YE WILDLIFE EDUCATIONAL content hai.\n"
-            "Tone: 'Dekho zaraa...', 'Socho agar tum jungle mein hote...', 'Ye jo tum dekh rahe ho...'\n"
-            "Wonder aur curiosity — viewer ko nature se deeply connect karo.\n"
-            "Hidden animal facts, survival instincts, food chain batao jo mind blow kar de."
+        opening_style = (
+            "Ye ek wildlife documentary scene hai.\n"
+            "Open with powerful scene-setting: location, environment, atmosphere.\n"
+            "'Duniya ke is kone mein...' / 'Karod saalon ki evolution ne...' / 'Jab suraj dhalta hai...'\n"
+            "Animal ko protagonist ki tarah present karo — uski struggle, survival, beauty."
         )
 
     try:
         client = Groq(api_key=GROQ_API_KEY)
         resp = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            max_tokens=400,
+            max_tokens=420,
             messages=[{"role": "user", "content": f"""
-Tu @atlantis_wildlife Instagram Reel ka narrator hai.
-Ek 30-second Hindi narration script likho jo poori Reel mein chale.
+Tu National Geographic / BBC Earth ke Hindi narrator ki tarah bol.
+Ek 30-second documentary narration likho — poetic, authoritative, awe-inspiring.
 
 Topic: {title}
 Details: {body}
 Summary: {summary}
 
-{style}
+{opening_style}
 
-STRICT RULES:
-- HEADLINE BILKUL MAT PADHO — woh screen pe already dikh raha hai
-- ~90-100 words likhoo — 30 second ke liye enough hoga
-- Actual animal facts, behavior, habitat context do
-- Hinglish (Hindi + English mix), conversational
-- FORBIDDEN: "yaar", "sun", "yaar sun", "bhai", "dosto"
-- Vary opener: "Socho zaraa...", "Ye dekhna zaroori hai...", "Is jungle mein...", "Nature ki ye sachai..."
-- "..." use karo dramatic pause ke liye
-- Chhoti punchy sentences = strong impact
+NATGEO NARRATOR STYLE — STRICT:
+- HEADLINE BILKUL MAT PADHO — screen pe already dikh raha hai
+- ~90-100 words — exactly 30 seconds ke liye
+- Scene se shuru karo — environment, light, sound imagine karo
+- Animal ko hero ki tarah present karo — uski strength, instinct, survival
+- Scientific fact ek do — lekin poetic language mein
+- End mein ek profound thought ya conservation message
+- Hindi dominant, English sirf technical terms ke liye
+- FORBIDDEN words: "yaar", "sun", "bhai", "dosto", "chaliye", "dekhte hain"
+- "..." = dramatic pause — use karo wisely
+- Har sentence powerful ho — koi filler nahi
 - Sirf bolne wala text — koi heading, bullet, asterisk nahi
 
-Script:"""}]
+Narration:"""}]
         )
         narration = resp.choices[0].message.content.strip()
         import re
         narration = re.sub(r'\*+', '', narration).strip()
         wc = len(narration.split())
-        print(f"      Narration ({wc} words, {'realtime' if is_rt else 'educational'})")
+        print(f"      Narration ({wc} words, NatGeo style)")
         return narration
     except Exception as e:
         print(f"      Narration error: {e}")
@@ -810,7 +918,7 @@ def generate_tts(text: str, out_path: str) -> bool:
 
         async def _speak():
             comm = edge_tts.Communicate(clean, voice="hi-IN-SwaraNeural",
-                                        rate="+5%", pitch="+0Hz", volume="+15%")
+                                        rate="-5%", pitch="-2Hz", volume="+15%")
             await comm.save(out_path)
 
         asyncio.run(_speak())
@@ -1301,7 +1409,8 @@ def run_agent():
         media_id  = None
         narration = generate_narration(news, headline, summary)
         keyword   = content.get("image_keyword", "wildlife animal nature")
-        video_path = fetch_wildlife_video(keyword, source=news.get("source", ""))
+        video_path = fetch_wildlife_video(keyword, source=news.get("source", ""),
+                                          article_url=news.get("url", ""))
 
         if video_path:
             reel_path = process_reel(video_path, headline, summary, narration,
