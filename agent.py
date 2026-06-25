@@ -1229,45 +1229,169 @@ Narration:"""}]
         return summary
 
 
-def generate_tts(text: str, out_path: str) -> bool:
-    """Edge TTS — SwaraNeural Hindi voice"""
-    import re as _re
+def _normalize_audio(path: str) -> None:
+    """loudnorm + highpass post-processing for broadcast quality"""
     import subprocess as _sp
+    norm = path.replace(".mp3", "_norm.mp3")
+    r = _sp.run([
+        "ffmpeg", "-y", "-i", path,
+        "-af", "loudnorm=I=-14:TP=-1.5:LRA=7,highpass=f=80",
+        norm
+    ], capture_output=True, timeout=30)
+    if r.returncode == 0 and os.path.exists(norm):
+        os.replace(norm, path)
 
-    clean = _re.sub(r'\.{2,}', '... ', text)
-    clean = _re.sub(r'\s+', ' ', clean).strip()
 
+def _tts_google_wavenet(text: str, out_path: str) -> bool:
+    """Google Cloud WaveNet — best Hindi pronunciation (hi-IN-Wavenet-D female)"""
+    import base64
+    api_key = os.getenv("GOOGLE_TTS_API_KEY", "")
+    if not api_key:
+        return False
     try:
-        import asyncio
-        import edge_tts
+        # Split text into 4500-char chunks (Google limit is 5000)
+        chunks = [text[i:i+4500] for i in range(0, len(text), 4500)]
+        all_audio = b""
+        for chunk in chunks:
+            resp = requests.post(
+                f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}",
+                json={
+                    "input": {"text": chunk},
+                    "voice": {
+                        "languageCode": "hi-IN",
+                        "name":         "hi-IN-Wavenet-D",
+                        "ssmlGender":   "FEMALE"
+                    },
+                    "audioConfig": {
+                        "audioEncoding":  "MP3",
+                        "speakingRate":   0.93,
+                        "pitch":          -1.5,
+                        "volumeGainDb":   3.0,
+                        "effectsProfileId": ["headphone-class-device"]
+                    }
+                },
+                timeout=30
+            )
+            audio_b64 = resp.json().get("audioContent", "")
+            if not audio_b64:
+                print(f"      Google WaveNet error: {resp.json()}")
+                return False
+            all_audio += base64.b64decode(audio_b64)
+        with open(out_path, "wb") as f:
+            f.write(all_audio)
+        if os.path.exists(out_path) and os.path.getsize(out_path) > 1000:
+            print(f"      Google WaveNet (hi-IN-Wavenet-D) ready")
+            _normalize_audio(out_path)
+            return True
+    except Exception as e:
+        print(f"      Google WaveNet error: {e}")
+    return False
+
+
+def _tts_sarvam(text: str, out_path: str) -> bool:
+    """Sarvam AI bulbul:v1 — Indian language specialist, best Hinglish"""
+    import base64
+    api_key = os.getenv("SARVAM_API_KEY", "")
+    if not api_key:
+        return False
+    try:
+        # Sarvam max 500 chars per request — split and concatenate
+        MAX = 490
+        chunks = []
+        words = text.split()
+        cur = ""
+        for w in words:
+            test = f"{cur} {w}".strip()
+            if len(test) > MAX:
+                if cur:
+                    chunks.append(cur)
+                cur = w
+            else:
+                cur = test
+        if cur:
+            chunks.append(cur)
+
+        all_audio = b""
+        for chunk in chunks:
+            resp = requests.post(
+                "https://api.sarvam.ai/text-to-speech",
+                headers={"api-subscription-key": api_key, "Content-Type": "application/json"},
+                json={
+                    "inputs":               [chunk],
+                    "target_language_code": "hi-IN",
+                    "speaker":              "meera",
+                    "pitch":                0,
+                    "pace":                 0.9,
+                    "loudness":             1.5,
+                    "speech_sample_rate":   22050,
+                    "enable_preprocessing": True,
+                    "model":                "bulbul:v1"
+                },
+                timeout=30
+            )
+            audio_b64 = resp.json().get("audios", [""])[0]
+            if not audio_b64:
+                print(f"      Sarvam error: {resp.json()}")
+                return False
+            all_audio += base64.b64decode(audio_b64)
+
+        with open(out_path, "wb") as f:
+            f.write(all_audio)
+        if os.path.exists(out_path) and os.path.getsize(out_path) > 1000:
+            print(f"      Sarvam AI (bulbul:v1 meera) ready")
+            _normalize_audio(out_path)
+            return True
+    except Exception as e:
+        print(f"      Sarvam error: {e}")
+    return False
+
+
+def _tts_edge(text: str, out_path: str) -> bool:
+    """Edge TTS SwaraNeural — fallback"""
+    import subprocess as _sp
+    try:
+        import asyncio, edge_tts
 
         async def _speak():
-            comm = edge_tts.Communicate(clean, voice="hi-IN-SwaraNeural",
+            comm = edge_tts.Communicate(text, voice="hi-IN-SwaraNeural",
                                         rate="-5%", pitch="-2Hz", volume="+15%")
             await comm.save(out_path)
 
         asyncio.run(_speak())
         if os.path.exists(out_path) and os.path.getsize(out_path) > 1000:
-            norm_path = out_path.replace(".mp3", "_norm.mp3")
-            norm = _sp.run([
-                "ffmpeg", "-y", "-i", out_path,
-                "-af", "loudnorm=I=-14:TP=-1.5:LRA=7,highpass=f=80",
-                norm_path
-            ], capture_output=True, timeout=30)
-            if norm.returncode == 0 and os.path.exists(norm_path):
-                os.replace(norm_path, out_path)
+            _normalize_audio(out_path)
             print(f"      Edge TTS (SwaraNeural) ready")
             return True
     except Exception as e:
         print(f"      Edge TTS error: {e}")
+    return False
 
+
+def generate_tts(text: str, out_path: str) -> bool:
+    """
+    Hindi TTS priority chain:
+      1. Google WaveNet hi-IN-Wavenet-D  — best Hindi pronunciation
+      2. Sarvam AI bulbul:v1             — Indian language specialist
+      3. Edge TTS SwaraNeural            — fallback
+      4. gTTS                            — last resort
+    """
+    import re as _re
+    clean = _re.sub(r'\.{2,}', '... ', text)
+    clean = _re.sub(r'\s+', ' ', clean).strip()
+
+    if _tts_google_wavenet(clean, out_path):
+        return True
+    if _tts_sarvam(clean, out_path):
+        return True
+    if _tts_edge(clean, out_path):
+        return True
     try:
         from gtts import gTTS
         gTTS(text=clean, lang="hi", slow=False).save(out_path)
-        print(f"      gTTS fallback ready")
+        print(f"      gTTS last-resort ready")
         return os.path.exists(out_path) and os.path.getsize(out_path) > 0
-    except Exception as e2:
-        print(f"      gTTS error: {e2}")
+    except Exception as e:
+        print(f"      gTTS error: {e}")
         return False
 
 

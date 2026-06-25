@@ -58,6 +58,8 @@ jobs:
           WILDLIFE_INSTAGRAM_ACCOUNT_ID:       ${{ secrets.WILDLIFE_INSTAGRAM_ACCOUNT_ID }}
           NPS_API_KEY:                         ${{ secrets.NPS_API_KEY }}
           PIXABAY_API_KEY:                     ${{ secrets.PIXABAY_API_KEY }}
+          GOOGLE_TTS_API_KEY:                  ${{ secrets.GOOGLE_TTS_API_KEY }}
+          SARVAM_API_KEY:                      ${{ secrets.SARVAM_API_KEY }}
           YOUTUBE_CLIENT_ID:                   ${{ secrets.YOUTUBE_WILDLIFE_CLIENT_ID }}
           YOUTUBE_CLIENT_SECRET:               ${{ secrets.YOUTUBE_WILDLIFE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN:               ${{ secrets.YOUTUBE_WILDLIFE_REFRESH_TOKEN }}
