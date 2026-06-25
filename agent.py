@@ -727,22 +727,50 @@ def _yt_dlp(url: str, prefix: str) -> str | None:
 
 
 # ── NASA Image & Video Library ─────────────────────────────────────────────
+NASA_WILDLIFE_QUERIES = [
+    "sea turtle", "bald eagle", "manatee", "alligator everglades",
+    "whale dolphin ocean", "bear wildlife", "wolf yellowstone",
+    "bird migration wildlife", "coral reef fish", "wildlife animal"
+]
+
+# Words that indicate non-wildlife NASA content — skip these
+NASA_EXCLUDE = {
+    "ndvi", "satellite", "spacecraft", "rocket", "astronaut", "iss",
+    "telescope", "galaxy", "planet", "mars", "moon", "solar", "orbit",
+    "launch", "station", "hubble", "webb", "radar", "lidar", "sensor",
+    "instrument", "data", "visualization", "composite", "landsat",
+    "modis", "terra", "aqua", "goes", "suomi",
+}
+
+
 def fetch_nasa_video(keyword: str) -> str | None:
-    """NASA — public domain wildlife/nature videos"""
-    queries = [f"{keyword} wildlife", f"{keyword} nature", "wildlife animal"]
+    """NASA — public domain wildlife/nature videos (strict wildlife filter)"""
+    import random
+    # Use fixed wildlife queries — don't pass article keyword (too broad)
+    queries = [q for q in NASA_WILDLIFE_QUERIES
+               if any(w in keyword.lower() for w in q.split())]
+    if not queries:
+        queries = random.sample(NASA_WILDLIFE_QUERIES, 3)
+
     try:
-        for q in queries:
+        for q in queries[:3]:
             r = requests.get(
                 "https://images-api.nasa.gov/search",
                 params={"q": q, "media_type": "video"},
                 timeout=10
             )
             items = r.json().get("collection", {}).get("items", [])
-            import random
             random.shuffle(items)
-            for item in items[:8]:
-                nasa_id = item.get("data", [{}])[0].get("nasa_id", "")
+            for item in items[:10]:
+                data    = item.get("data", [{}])[0]
+                nasa_id = data.get("nasa_id", "")
+                title   = data.get("title", "").lower()
+                desc    = data.get("description", "").lower()
                 if not nasa_id:
+                    continue
+                # Skip satellite/science content — wildlife only
+                combined = f"{title} {desc}"
+                if any(excl in combined for excl in NASA_EXCLUDE):
                     continue
                 try:
                     asset = requests.get(
@@ -754,7 +782,7 @@ def fetch_nasa_video(keyword: str) -> str | None:
                         if href.endswith("~mobile.mp4") or href.endswith(".mp4"):
                             path = _download_video(href, "nasa")
                             if path:
-                                print(f"      NASA video: {nasa_id}")
+                                print(f"      NASA video: {nasa_id} — {data.get('title','')[:50]}")
                                 return path
                 except Exception:
                     continue
@@ -1491,10 +1519,24 @@ def post_reel(video_url: str, caption: str) -> str | None:
             timeout=15
         )
         media_id = pub.json().get("id")
-        if media_id:
-            print(f"      Reel posted! ID: {media_id}")
+        if not media_id:
+            print(f"      Reel publish error: {pub.json()}")
+            return None
+
+        # Verify post actually exists (Instagram sometimes silently rejects)
+        time.sleep(4)
+        verify = requests.get(
+            f"https://graph.facebook.com/v25.0/{media_id}",
+            params={"fields": "id,media_type,permalink", "access_token": INSTAGRAM_TOKEN},
+            timeout=10
+        ).json()
+        if verify.get("id"):
+            permalink = verify.get("permalink", "")
+            print(f"      Reel verified! {permalink}")
             return media_id
-        print(f"      Reel publish error: {pub.json()}")
+        else:
+            print(f"      Reel rejected by Instagram silently (bad video content?): {verify}")
+            return None
     except Exception as e:
         print(f"      Reel error: {e}")
     return None
