@@ -1409,8 +1409,6 @@ def generate_tts(text: str, out_path: str) -> bool:
     clean = _re.sub(r'\.{2,}', '... ', text)
     clean = _re.sub(r'\s+', ' ', clean).strip()
 
-    if _tts_sarvam(clean, out_path):
-        return True
     if _tts_edge(clean, out_path):   # tries Ananya → Madhur → Swara internally
         return True
     try:
