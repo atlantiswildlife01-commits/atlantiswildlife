@@ -1077,7 +1077,7 @@ def fetch_article_video(article_url: str) -> str | None:
     return None
 
 
-def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") -> str | None:
+def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") -> tuple[str | None, str]:
     """
     Video priority (public domain first, Pexels last):
       1. Article direct MP4
@@ -1103,19 +1103,19 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
     if article_url:
         path = fetch_article_video(article_url)
         if path:
-            return path
+            return path, video_keyword
 
     # 2. USFWS — best US government wildlife library
     print(f"      Trying USFWS...")
     path = fetch_usfws_video(video_keyword)
     if path:
-        return path
+        return path, video_keyword
 
     # 3. NPS — Yellowstone, Everglades, national park wildlife
     print(f"      Trying NPS...")
     path = fetch_nps_video(video_keyword)
     if path:
-        return path
+        return path, video_keyword
 
     # 4. NOAA — deep sea, marine, ocean life (marine keywords only)
     is_marine = any(w in video_keyword.lower() for w in
@@ -1124,67 +1124,84 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
         print(f"      Trying NOAA (marine)...")
         path = fetch_noaa_video(video_keyword)
         if path:
-            return path
+            return path, video_keyword
 
     # 5. USGS — bears, salmon, polar wildlife
     print(f"      Trying USGS...")
     path = fetch_usgs_video(video_keyword)
     if path:
-        return path
+        return path, video_keyword
 
     # 6. Wikimedia Commons — CC licensed real wildlife clips
     print(f"      Trying Wikimedia...")
     path = fetch_wikimedia_video(video_keyword)
     if path:
-        return path
+        return path, video_keyword
 
     # 7. NASA — wildlife strictly filtered (last govt attempt)
     print(f"      Trying NASA (filtered)...")
     path = fetch_nasa_video(video_keyword)
     if path:
-        return path
+        return path, video_keyword
 
     # 8. Pixabay — CC0 stock (if key available)
     if PIXABAY_API_KEY:
         print(f"      Trying Pixabay...")
         path = fetch_pixabay_video(video_keyword)
         if path:
-            return path
+            return path, video_keyword
 
-    # 9. Pexels — last resort
+    # 9. Pexels — last resort (generic keyword so narration matches)
     print(f"      Pexels fallback (last resort)...")
     path = fetch_pexels_video(video_keyword)
     if path:
-        return path
+        return path, video_keyword
     if video_keyword != keyword:
         path = fetch_pexels_video(keyword)
         if path:
-            return path
-    return fetch_pexels_video("wildlife animal nature")
+            return path, keyword
+    path = fetch_pexels_video("wildlife animal nature")
+    return (path, "wildlife animal nature") if path else (None, "")
 
 
 REALTIME_SOURCES = {"iNaturalist", "GBIF Wildlife"}
 
 
-def generate_narration(news_item: dict, headline: str, summary: str) -> str:
-    """Groq se 30-second wildlife Reel narration"""
+def generate_narration(news_item: dict, headline: str, summary: str,
+                       video_topic: str = "") -> str:
+    """Groq se 30-second wildlife Reel narration — video_topic se match karta hai"""
     source = news_item.get("source", "")
     title  = news_item.get("title", "")
     body   = news_item.get("body", "")[:500]
     is_rt  = any(s in source for s in REALTIME_SOURCES)
 
+    # Video topic se visual context banao
+    visual_context = ""
+    if video_topic and video_topic not in ("wildlife animal nature", ""):
+        visual_context = (
+            f"\nVIDEO MEIN KYA DIKH RAHA HAI: '{video_topic}'\n"
+            f"Narration ISKO describe kare — viewer yahi dekh raha hai screen pe.\n"
+            f"Agar news topic alag hai, to thematically connect karo — "
+            f"lekin visual description video ke animal/scene ke baare mein hi ho.\n"
+        )
+    else:
+        visual_context = (
+            "\nVideo mein general wildlife footage hai.\n"
+            "Narration wildlife aur nature ke baare mein broadly bolo — "
+            "kisi specific animal ka naam mat lo jo video mein na ho.\n"
+        )
+
     if is_rt:
         opening_style = (
             "Ye ek REAL wildlife observation hai — abhi is waqt captured.\n"
             "Open with scene: 'Yahan... is jagah pe... abhi kuch aisa hua jo...' \n"
-            "Urgency + wonder — jaise NatGeo ka cameraman abhi wahan maujood ho.\n"
-            "Animal, location, behavior — poetic lekin precise."
+            "Urgency + wonder — jaise NatGeo ka cameraman abhi wahan maujood ho."
         )
     else:
         opening_style = (
             "Ye ek wildlife documentary scene hai.\n"
             "Open with powerful scene-setting: location, environment, atmosphere.\n"
-            "'Duniya ke is kone mein...' / 'Karod saalon ki evolution ne...' / 'Jab suraj dhalta hai...'\n"
+            "'Duniya ke is kone mein...' / 'Karod saalon ki evolution ne...' / 'Jab raat dhalta hai...'\n"
             "Animal ko protagonist ki tarah present karo — uski struggle, survival, beauty."
         )
 
@@ -1197,10 +1214,10 @@ def generate_narration(news_item: dict, headline: str, summary: str) -> str:
 Tu National Geographic / BBC Earth ke Hindi narrator ki tarah bol.
 Ek 30-second documentary narration likho — poetic, authoritative, awe-inspiring.
 
-Topic: {title}
+News Topic: {title}
 Details: {body}
 Summary: {summary}
-
+{visual_context}
 {opening_style}
 
 NATGEO NARRATOR STYLE — STRICT:
@@ -1211,9 +1228,8 @@ NATGEO NARRATOR STYLE — STRICT:
 - Scientific fact ek do — lekin poetic language mein
 - End mein ek profound thought ya conservation message
 - Hindi dominant, English sirf technical terms ke liye
-- FORBIDDEN words: "yaar", "sun", "bhai", "dosto", "chaliye", "dekhte hain"
+- FORBIDDEN: "yaar", "sun", "bhai", "dosto", "chaliye", "dekhte hain"
 - "..." = dramatic pause — use karo wisely
-- Har sentence powerful ho — koi filler nahi
 - Sirf bolne wala text — koi heading, bullet, asterisk nahi
 
 Narration:"""}]
@@ -1897,11 +1913,14 @@ def run_agent():
         hashtags = content.get("hashtags", "#Wildlife #Nature #Animals")
         caption  = content.get("caption", "")
 
-        media_id  = None
-        narration = generate_narration(news, headline, summary)
-        keyword   = content.get("image_keyword", "wildlife animal nature")
-        video_path = fetch_wildlife_video(keyword, source=news.get("source", ""),
-                                          article_url=news.get("url", ""))
+        media_id = None
+        keyword  = content.get("image_keyword", "wildlife animal nature")
+
+        # Fetch video FIRST — then narrate about what's actually in the video
+        video_path, video_topic = fetch_wildlife_video(
+            keyword, source=news.get("source", ""), article_url=news.get("url", "")
+        )
+        narration = generate_narration(news, headline, summary, video_topic=video_topic)
 
         if video_path:
             reel_path = process_reel(video_path, headline, summary, narration,
