@@ -1230,14 +1230,30 @@ Narration:"""}]
 
 
 def _normalize_audio(path: str) -> None:
-    """loudnorm + highpass post-processing for broadcast quality"""
+    """Documentary-grade audio filter chain — warm, clear, broadcast quality"""
     import subprocess as _sp
     norm = path.replace(".mp3", "_norm.mp3")
-    r = _sp.run([
-        "ffmpeg", "-y", "-i", path,
-        "-af", "loudnorm=I=-14:TP=-1.5:LRA=7,highpass=f=80",
-        norm
-    ], capture_output=True, timeout=30)
+    # Filter chain explanation:
+    # highpass=85      → remove mic rumble / low noise
+    # lowpass=13000    → soften harsh sibilance
+    # acompressor      → even out loud/soft parts (consistent volume)
+    # equalizer 250Hz  → warmth / body in voice
+    # equalizer 3500Hz → presence / clarity (makes Hindi consonants crisp)
+    # equalizer 7500Hz → subtle air / brightness
+    # loudnorm         → broadcast standard -14 LUFS
+    filters = (
+        "highpass=f=85,"
+        "lowpass=f=13000,"
+        "acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=2dB,"
+        "equalizer=f=250:t=q:w=2:g=2,"
+        "equalizer=f=3500:t=q:w=1.5:g=3,"
+        "equalizer=f=7500:t=q:w=2:g=1,"
+        "loudnorm=I=-14:TP=-1.5:LRA=7"
+    )
+    r = _sp.run(
+        ["ffmpeg", "-y", "-i", path, "-af", filters, norm],
+        capture_output=True, timeout=30
+    )
     if r.returncode == 0 and os.path.exists(norm):
         os.replace(norm, path)
 
@@ -1347,21 +1363,33 @@ def _tts_sarvam(text: str, out_path: str) -> bool:
 
 
 def _tts_edge(text: str, out_path: str) -> bool:
-    """Edge TTS SwaraNeural — fallback"""
-    import subprocess as _sp
+    """Edge TTS — try multiple Hindi voices, best quality first"""
+    # Voice priority:
+    # AnanyaNeural  — newer female, clearest Hindi pronunciation
+    # MadhurNeural  — deep male, NatGeo documentary feel
+    # SwaraNeural   — original female fallback
+    VOICES = [
+        ("hi-IN-AnanyaNeural", "-3%",  "-1Hz", "+15%"),
+        ("hi-IN-MadhurNeural", "-5%",  "+0Hz", "+12%"),
+        ("hi-IN-SwaraNeural",  "-5%",  "-2Hz", "+15%"),
+    ]
     try:
         import asyncio, edge_tts
 
-        async def _speak():
-            comm = edge_tts.Communicate(text, voice="hi-IN-SwaraNeural",
-                                        rate="-5%", pitch="-2Hz", volume="+15%")
-            await comm.save(out_path)
+        for voice, rate, pitch, volume in VOICES:
+            try:
+                async def _speak(v=voice, r=rate, p=pitch, vol=volume):
+                    comm = edge_tts.Communicate(text, voice=v,
+                                                rate=r, pitch=p, volume=vol)
+                    await comm.save(out_path)
 
-        asyncio.run(_speak())
-        if os.path.exists(out_path) and os.path.getsize(out_path) > 1000:
-            _normalize_audio(out_path)
-            print(f"      Edge TTS (SwaraNeural) ready")
-            return True
+                asyncio.run(_speak())
+                if os.path.exists(out_path) and os.path.getsize(out_path) > 1000:
+                    _normalize_audio(out_path)
+                    print(f"      Edge TTS ({voice}) ready")
+                    return True
+            except Exception:
+                continue
     except Exception as e:
         print(f"      Edge TTS error: {e}")
     return False
@@ -1370,29 +1398,31 @@ def _tts_edge(text: str, out_path: str) -> bool:
 def generate_tts(text: str, out_path: str) -> bool:
     """
     Hindi TTS priority chain:
-      1. Google WaveNet hi-IN-Wavenet-D  — best Hindi pronunciation
-      2. Sarvam AI bulbul:v1             — Indian language specialist
-      3. Edge TTS SwaraNeural            — fallback
-      4. gTTS                            — last resort
+      1. Sarvam AI bulbul:v1 meera      — Indian language specialist (100 credits)
+      2. Edge TTS AnanyaNeural           — unlimited free, clearest Hindi
+      3. Edge TTS MadhurNeural           — deep documentary male voice
+      4. Edge TTS SwaraNeural            — original fallback
+      5. gTTS                            — last resort
+    All voices go through documentary-grade FFmpeg filter chain.
     """
     import re as _re
     clean = _re.sub(r'\.{2,}', '... ', text)
     clean = _re.sub(r'\s+', ' ', clean).strip()
 
-    if _tts_google_wavenet(clean, out_path):
-        return True
     if _tts_sarvam(clean, out_path):
         return True
-    if _tts_edge(clean, out_path):
+    if _tts_edge(clean, out_path):   # tries Ananya → Madhur → Swara internally
         return True
     try:
         from gtts import gTTS
         gTTS(text=clean, lang="hi", slow=False).save(out_path)
-        print(f"      gTTS last-resort ready")
-        return os.path.exists(out_path) and os.path.getsize(out_path) > 0
+        if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
+            _normalize_audio(out_path)
+            print(f"      gTTS last-resort ready")
+            return True
     except Exception as e:
         print(f"      gTTS error: {e}")
-        return False
+    return False
 
 
 def process_reel(video_path: str, headline: str, summary: str, narration: str = "", source: str = "") -> str | None:
