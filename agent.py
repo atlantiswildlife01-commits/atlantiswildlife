@@ -1151,17 +1151,8 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
         if path:
             return path, video_keyword
 
-    # 9. Pexels — last resort (generic keyword so narration matches)
-    print(f"      Pexels fallback (last resort)...")
-    path = fetch_pexels_video(video_keyword)
-    if path:
-        return path, video_keyword
-    if video_keyword != keyword:
-        path = fetch_pexels_video(keyword)
-        if path:
-            return path, keyword
-    path = fetch_pexels_video("wildlife animal nature")
-    return (path, "wildlife animal nature") if path else (None, "")
+    print(f"      No video found for '{video_keyword}'")
+    return None, ""
 
 
 REALTIME_SOURCES = {"iNaturalist", "GBIF Wildlife"}
