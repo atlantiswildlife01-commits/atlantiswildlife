@@ -52,4 +52,4 @@ jobs:
           YOUTUBE_CLIENT_SECRET:    ${{ secrets.YOUTUBE_WILDLIFE_CLIENT_SECRET }}
           YOUTUBE_REFRESH_TOKEN:    ${{ secrets.YOUTUBE_WILDLIFE_REFRESH_TOKEN }}
           YOUTUBE_ONLY:             "true"
-        run: python atlantis_wildlife/agent.py
+        run: python agent.py
