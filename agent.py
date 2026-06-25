@@ -35,8 +35,8 @@ INSTAGRAM_ACCOUNT_ID = os.getenv("WILDLIFE_INSTAGRAM_ACCOUNT_ID")
 IMGBB_API_KEY        = os.getenv("IMGBB_API_KEY")
 
 CHANNEL_HANDLE  = "@atlantis_wildlife"
-POST_DELAY      = 45
-CAROUSEL_SLIDES = 2    # 2 posts/run × 5 runs = 10 posts/day
+POST_DELAY      = 20
+CAROUSEL_SLIDES = 1
 
 LOGO_PATH     = os.path.join(os.path.dirname(os.path.abspath(__file__)), "atlantis_wildlife.png")
 HISTORY_FILE  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "posted_history.json")
@@ -1066,8 +1066,9 @@ def post_reel(video_url: str, caption: str) -> str | None:
         if not container_id:
             print(f"      Reel container error: {resp.json()}")
             return None
-        for _ in range(12):
-            time.sleep(8)
+        time.sleep(5)
+        for i in range(15):
+            time.sleep(5 if i < 3 else 8)
             status = requests.get(
                 f"https://graph.facebook.com/v25.0/{container_id}",
                 params={"fields": "status_code", "access_token": INSTAGRAM_TOKEN},
@@ -1219,52 +1220,43 @@ def run_agent():
     print(f"  Time: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 55)
 
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     all_news = []
 
-    # Source 1: iNaturalist — real wildlife observations
-    inat = fetch_inaturalist_obs()
-    if inat:
-        all_news.insert(0, inat)
+    # Fetch all RSS sources in parallel — ~10x faster than sequential
+    rss_sources = [
+        fetch_natgeo_animals,
+        fetch_bbc_wildlife,
+        fetch_wwf_news,
+        fetch_mongabay_news,
+        fetch_iucn_news,
+        fetch_smithsonian_nature,
+        fetch_audubon_birds,
+        fetch_earthsky_nature,
+    ]
 
-    # Source 2: GBIF — global biodiversity observations
-    gbif = fetch_gbif_species()
-    if gbif:
-        all_news.append(gbif)
+    print("\n[Fetch] Parallel fetching all sources...")
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        api_futures  = {ex.submit(fetch_inaturalist_obs): "inat",
+                        ex.submit(fetch_gbif_species):    "gbif"}
+        rss_futures  = {ex.submit(fn): fn.__name__ for fn in rss_sources}
+        all_futures  = {**api_futures, **rss_futures}
 
-    # Source 3: National Geographic Animals
-    natgeo = fetch_natgeo_animals()
-    all_news.extend(natgeo)
+        for fut in as_completed(all_futures):
+            try:
+                result = fut.result()
+                if result is None:
+                    pass
+                elif isinstance(result, dict):
+                    all_news.append(result)
+                elif isinstance(result, list):
+                    all_news.extend(result)
+            except Exception as e:
+                print(f"      Source error: {e}")
 
-    # Source 4: BBC Wildlife / Science & Environment
-    bbc = fetch_bbc_wildlife()
-    all_news.extend(bbc)
-
-    # Source 5: WWF conservation news
-    wwf = fetch_wwf_news()
-    all_news.extend(wwf)
-
-    # Source 6: Mongabay — tropical wildlife
-    mongabay = fetch_mongabay_news()
-    all_news.extend(mongabay)
-
-    # Source 7: IUCN Red List news
-    iucn = fetch_iucn_news()
-    all_news.extend(iucn)
-
-    # Source 8: Smithsonian nature articles
-    smithsonian = fetch_smithsonian_nature()
-    all_news.extend(smithsonian)
-
-    # Source 9: Audubon birds
-    audubon = fetch_audubon_birds()
-    all_news.extend(audubon)
-
-    # Source 10: EarthSky nature
-    earthsky = fetch_earthsky_nature()
-    all_news.extend(earthsky)
-
-    # Source 11: DuckDuckGo fallback
-    if len(all_news) < 4:
+    # DuckDuckGo fallback only if very few results
+    if len(all_news) < 3:
         for topic in WILDLIFE_TOPICS[:2]:
             results = fetch_news(topic, max_results=3)
             all_news.extend(results)

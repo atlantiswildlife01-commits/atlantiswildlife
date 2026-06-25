@@ -31,6 +31,13 @@ jobs:
       - name: System packages
         run: sudo apt-get install -y fonts-noto fonts-noto-extra ffmpeg
 
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: wildlife-pip-${{ hashFiles('**/requirements*.txt') }}-v1
+          restore-keys: wildlife-pip-
+
       - name: Install dependencies
         run: pip install ddgs groq requests Pillow python-dotenv PyNaCl gtts edge-tts
 
