@@ -56,11 +56,13 @@ if YOUTUBE_ONLY:
     CAROUSEL_SLIDES = 1
 
 WILDLIFE_TOPICS = [
-    "rare wildlife animal discovery 2025",
-    "endangered species conservation news",
-    "tiger lion leopard wildlife India",
+    "rare wildlife animal discovery 2026",
+    "endangered species conservation news India",
+    "tiger lion leopard cheetah wildlife India",
     "marine life ocean deep sea creature",
     "bird migration butterfly insect nature",
+    "new species discovered rainforest 2026",
+    "wildlife rescue rehabilitation India",
 ]
 
 WILDLIFE_VIDEO_KEYWORDS = {
@@ -69,11 +71,26 @@ WILDLIFE_VIDEO_KEYWORDS = {
     "national geo":   "wild animal predator prey",
     "bbc wildlife":   "wildlife documentary nature",
     "inaturalist":    "wildlife observation animals nature",
+    "gbif":           "wildlife animal observation nature",
     "bird":           "bird flight wildlife nature",
     "marine":         "ocean fish shark whale dolphins",
     "insect":         "butterfly insect macro nature",
     "tiger":          "tiger wildlife India forest",
     "elephant":       "elephant wildlife Africa India",
+    "lion":           "lion pride savanna wildlife",
+    "leopard":        "leopard big cat wildlife",
+    "cheetah":        "cheetah sprint wildlife africa",
+    "bear":           "bear wildlife nature forest",
+    "wolf":           "wolf pack wildlife yellowstone",
+    "whale":          "whale dolphin ocean wildlife",
+    "shark":          "shark ocean marine wildlife",
+    "coral":          "coral reef marine wildlife",
+    "monkey":         "monkey primate wildlife forest",
+    "snake":          "snake reptile wildlife nature",
+    "frog":           "frog amphibian wildlife nature",
+    "science daily":  "animal wildlife nature science",
+    "guardian":       "wildlife nature animal habitat",
+    "phys.org":       "animal wildlife nature discovery",
     "pexels":         "wildlife animal nature",
 }
 
@@ -234,80 +251,126 @@ def fetch_earthsky_nature() -> list[dict]:
     return _parse_rss("https://earthsky.org/feed/", "EarthSky Nature", max_results=2)
 
 
-def fetch_inaturalist_obs() -> dict | None:
-    """iNaturalist API — recent interesting wildlife observation"""
+def fetch_sciencedaily_animals() -> list[dict]:
+    """ScienceDaily — Plants & Animals (very active, daily animal discoveries)"""
+    return _parse_rss("https://www.sciencedaily.com/rss/plants_animals.xml", "ScienceDaily", max_results=4)
+
+
+def fetch_guardian_environment() -> list[dict]:
+    """The Guardian — Environment & Wildlife"""
+    return _parse_rss("https://www.theguardian.com/environment/animals/rss", "Guardian Wildlife", max_results=3)
+
+
+def fetch_physorg_animals() -> list[dict]:
+    """Phys.org — Plants & Animals science news"""
+    return _parse_rss("https://phys.org/rss-feed/biology-news/plants-animals/", "Phys.org Nature", max_results=3)
+
+
+def fetch_wildaid_news() -> list[dict]:
+    """WildAid — anti-poaching & conservation news"""
+    return _parse_rss("https://wildaid.org/feed/", "WildAid", max_results=2)
+
+
+def fetch_wcs_news() -> list[dict]:
+    """WCS — Wildlife Conservation Society newsroom"""
+    return _parse_rss("https://newsroom.wcs.org/rss.aspx", "WCS", max_results=2)
+
+
+def fetch_inaturalist_obs() -> list[dict]:
+    """iNaturalist API — 3 diverse recent wildlife observations (Mammal+Bird+Reptile)"""
+    import random
+    results_out = []
+    # Fetch from 3 different taxa for variety
+    taxa_groups = [
+        "Mammalia,Aves",
+        "Reptilia,Amphibia",
+        "Actinopterygii,Insecta",
+    ]
     try:
-        resp = requests.get(
-            "https://api.inaturalist.org/v1/observations",
-            params={
-                "quality_grade": "research",
-                "photos":        "true",
-                "order":         "desc",
-                "order_by":      "votes",
-                "per_page":      10,
-                "iconic_taxa":   "Mammalia,Aves,Reptilia,Amphibia,Actinopterygii"
-            },
-            timeout=12,
-            headers={"User-Agent": "AtlantisWildlifeBot/1.0"}
-        )
-        results = resp.json().get("results", [])
-        for obs in results:
-            taxon   = obs.get("taxon", {}) or {}
-            name    = taxon.get("preferred_common_name", "") or taxon.get("name", "")
-            sci     = taxon.get("name", "")
-            place   = obs.get("place_guess", "Unknown location")
-            photos  = obs.get("photos", [])
-            img     = photos[0].get("url", "").replace("square", "large") if photos else ""
-            desc    = taxon.get("wikipedia_summary", "")[:400]
-            if name and img:
-                print(f"      iNaturalist: {name} @ {place}")
-                return {
-                    "title": f"{name} Spotted — {place}",
-                    "body":  desc or f"{name} ({sci}) ki ek amazing wildlife observation. Location: {place}.",
-                    "image": img,
-                    "source": "iNaturalist",
-                    "date": datetime.now().strftime("%Y-%m-%d")
-                }
+        for taxa in taxa_groups:
+            resp = requests.get(
+                "https://api.inaturalist.org/v1/observations",
+                params={
+                    "quality_grade": "research",
+                    "photos":        "true",
+                    "order":         "desc",
+                    "order_by":      "votes",
+                    "per_page":      15,
+                    "iconic_taxa":   taxa,
+                },
+                timeout=12,
+                headers={"User-Agent": "AtlantisWildlifeBot/1.0"}
+            )
+            obs_list = resp.json().get("results", [])
+            random.shuffle(obs_list)
+            for obs in obs_list[:8]:
+                taxon  = obs.get("taxon", {}) or {}
+                name   = taxon.get("preferred_common_name", "") or taxon.get("name", "")
+                sci    = taxon.get("name", "")
+                place  = obs.get("place_guess", "Unknown location")
+                photos = obs.get("photos", [])
+                img    = photos[0].get("url", "").replace("square", "large") if photos else ""
+                desc   = taxon.get("wikipedia_summary", "")[:400]
+                if name and img:
+                    print(f"      iNaturalist: {name} @ {place}")
+                    results_out.append({
+                        "title":  f"{name} Spotted — {place}",
+                        "body":   desc or f"{name} ({sci}) ki ek amazing observation. Location: {place}.",
+                        "image":  img,
+                        "source": "iNaturalist",
+                        "date":   datetime.now().strftime("%Y-%m-%d"),
+                        "url":    obs.get("uri", ""),
+                    })
+                    break   # 1 observation per taxa group
     except Exception as e:
         print(f"      iNaturalist error: {e}")
-    return None
+    return results_out
 
 
-def fetch_gbif_species() -> dict | None:
-    """GBIF — Global Biodiversity species observation"""
+def fetch_gbif_species() -> list[dict]:
+    """GBIF — 2 diverse Global Biodiversity species observations"""
+    import random
+    results_out = []
+    # Two searches: one for charismatic megafauna, one for anything
+    searches = [
+        {"mediaType": "StillImage", "basisOfRecord": "HUMAN_OBSERVATION",
+         "hasCoordinate": "true", "taxonKey": "1", "limit": 20},   # Animalia
+        {"mediaType": "StillImage", "basisOfRecord": "HUMAN_OBSERVATION",
+         "hasCoordinate": "true", "limit": 20},
+    ]
     try:
-        resp = requests.get(
-            "https://api.gbif.org/v1/occurrence/search",
-            params={
-                "mediaType":  "StillImage",
-                "basisOfRecord": "HUMAN_OBSERVATION",
-                "hasCoordinate": "true",
-                "limit": 10,
-            },
-            timeout=12,
-            headers={"User-Agent": "AtlantisWildlifeBot/1.0"}
-        )
-        results = resp.json().get("results", [])
-        import random
-        random.shuffle(results)
-        for obs in results:
-            name    = obs.get("vernacularName", "") or obs.get("species", "")
-            sci     = obs.get("species", "")
-            country = obs.get("country", "")
-            media   = obs.get("media", [])
-            img     = media[0].get("identifier", "") if media else ""
-            if name and img and img.startswith("http"):
-                print(f"      GBIF: {name}, {country}")
-                return {
-                    "title": f"{name} — Wildlife Observation",
-                    "body":  f"{name} ({sci}) {country} mein observe kiya gaya. GBIF global biodiversity database pe record hai.",
-                    "image": img,
-                    "source": "GBIF Wildlife",
-                    "date":  datetime.now().strftime("%Y-%m-%d")
-                }
+        for params in searches:
+            resp = requests.get(
+                "https://api.gbif.org/v1/occurrence/search",
+                params=params, timeout=12,
+                headers={"User-Agent": "AtlantisWildlifeBot/1.0"}
+            )
+            items = resp.json().get("results", [])
+            random.shuffle(items)
+            for obs in items:
+                name    = obs.get("vernacularName", "") or obs.get("species", "")
+                sci     = obs.get("species", "")
+                country = obs.get("country", "")
+                media   = obs.get("media", [])
+                img     = media[0].get("identifier", "") if media else ""
+                if name and img and img.startswith("http"):
+                    # Avoid duplicating the same species in both calls
+                    if not any(r["title"].startswith(name) for r in results_out):
+                        print(f"      GBIF: {name}, {country}")
+                        results_out.append({
+                            "title":  f"{name} — Wildlife Observation",
+                            "body":   f"{name} ({sci}) {country} mein observe kiya gaya. GBIF global biodiversity database pe record hai.",
+                            "image":  img,
+                            "source": "GBIF Wildlife",
+                            "date":   datetime.now().strftime("%Y-%m-%d"),
+                            "url":    "",
+                        })
+                        break
+            if len(results_out) >= 2:
+                break
     except Exception as e:
         print(f"      GBIF error: {e}")
-    return None
+    return results_out
 
 
 def fetch_wikimedia_wildlife_image(keyword: str) -> str | None:
@@ -448,22 +511,26 @@ def smart_plan(all_news: list[dict], count: int = CAROUSEL_SLIDES) -> list[dict]
             model="llama-3.3-70b-versatile",
             max_tokens=500,
             messages=[{"role": "user", "content": f"""
-Ye wildlife/nature content hai. Visual aur wow-factor score do (1-10):
-- 9-10: Stunning animal photo/video (rare species, predator-prey, close-up)
-- 7-8: Interesting discovery (new species, conservation win, migration)
-- 5-6: Informative (research findings, wildlife news)
-- 1-4: Boring, no visual
+Ye wildlife/nature content hai. Visual + emotional + viral potential score do (1-10):
 
-Priority: iNaturalist > GBIF > National Geographic > BBC Wildlife > WWF > Mongabay
+SCORING GUIDE:
+- 9-10: Rare species / dramatic predator-prey / new discovery / cute animal moment — Instagram pe viral potential
+- 7-8: Conservation win / migration / interesting behavior / India wildlife
+- 5-6: Research news / habitat / biodiversity report
+- 1-4: Opinion piece / no clear visual / no animal focus
+
+SOURCE PRIORITY (boost by +1 if from these): iNaturalist > GBIF > ScienceDaily > NatGeo > BBC Wildlife > Mongabay > Guardian Wildlife
+
+INDIA BONUS: +2 if Indian wildlife (tiger, elephant, leopard, gharial, one-horned rhino, Gangetic dolphin, etc.)
 
 {news_list_str}
 
-TOP {count} choose karo. JSON:
+TOP {count} choose karo — most visually striking + emotionally engaging. JSON:
 {{
   "plan": [
-    {{"index": 0, "wow_score": 9, "reason": "why this is visually stunning"}}
+    {{"index": 0, "wow_score": 9, "reason": "why this works for Instagram"}}
   ],
-  "strategy": "one line content strategy"
+  "strategy": "one line about what makes this content special today"
 }}"""}],
             response_format={"type": "json_object"}
         )
@@ -486,31 +553,41 @@ TOP {count} choose karo. JSON:
 def generate_caption(news_item: dict) -> dict:
     print(f"\n[Caption] Generate kar raha hoon...")
     client = Groq(api_key=GROQ_API_KEY)
+    import random as _rand
+    caption_styles = [
+        "STORYTELLER: Ek choti si story ki tarah likho — 'Ek baar ki baat hai, jungle mein...' Emotional connection banao.",
+        "FACT BOMBER: Shuruaat ek shocking fact se karo jo log nahi jaante. Phir context do. End mein 'Ye tum jaante the?'",
+        "CONSERVATIONIST: Crisis + Hope ka angle. Kya kho rahe hain aur kya bach sakta hai — action call ke saath.",
+    ]
+    chosen_style = _rand.choice(caption_styles)
+
     prompt = f"""
 Tu {CHANNEL_HANDLE} ka Instagram content creator hai — ye ek WILDLIFE EXPLORATION channel hai.
+Audience: 18-35 saal ke Indian wildlife lovers, nature photographers, conservation supporters.
 
 Content:
 Title: {news_item.get('title', '')}
 Description: {news_item.get('body', '')[:500]}
 Source: {news_item.get('source', '')}
 
-TONE — WILDLIFE EXPLORER, NOT NEWS REPORTER:
-- Wonder, curiosity, amazement — jaisa koi wildlife photographer baat kar raha ho
-- "Dekho ye sher ki aankhein!", "Socho zaraa — ye jungle mein raat ko kya hota hai!", "Ye moment camera ne capture kiya!"
-- Readers ko nature se CONNECT karwao — unhe feel ho ki ye unki bhi duniya hai
-- Hindi+English mix (Hinglish), young Indian audience ke liye
-- 6-8 lines, educational but exciting — David Attenborough wali curiosity
-- End mein ek mind-blowing animal fact ya question
-- CAPTION MEIN HASHTAG NAHI — sirf "hashtags" field mein
+CAPTION STYLE THIS POST: {chosen_style}
+
+RULES:
+- Wonder + curiosity + amazement — NatGeo photographer ki tarah
+- Hinglish (Hindi dominant, English sirf proper nouns/scientific terms)
+- 6-8 punchy lines — har line punch honi chahiye, padding nahi
+- End mein ek question ya call-to-action (save, share, comment)
+- India connection dhundo — agar Indian species/place mention ho to highlight karo
+- CAPTION MEIN HASHTAG MAT LIKHO
 
 JSON:
 {{
-  "caption": "wildlife explorer style caption, no hashtags",
-  "hashtags": "#Wildlife #Nature #Animals #WildIndia #NaturePhotography #WildlifePhotography #IndianWildlife #NatureLovers #WildAnimal #Jungle #Conservation #BBCWildlife #NatGeo #WildlifeConservation #AnimalLovers #Predator #WildBeauty #NatureIsAmazing #AtlantisWildlife #SaveWildlife (20 tags)",
-  "image_keyword": "2-3 word English description for video search",
-  "emoji_title": "emoji + short title",
-  "headline": "5-8 word Hinglish headline — SIRF confirmed facts, spelling 100% correct",
-  "image_summary": "2-3 Hinglish sentences (max 35 words) — confirmed facts only"
+  "caption": "caption in chosen style, no hashtags, Hinglish",
+  "hashtags": "#Wildlife #WildIndia #NatureIndia #IndianWildlife #AnimalPhotography #WildlifePhotography #NatureLovers #Conservation #SaveWildlife #WildAnimal #BBCEarth #NatGeo #AtlantisWildlife #JungleLife #WildlifeConservation #Biodiversity #NatureIsBeautiful #WildBeauty #AnimalsOfInstagram #NaturePhotography",
+  "image_keyword": "2-3 word English description of the animal/scene for video search",
+  "emoji_title": "1-2 emoji + 3-4 word title",
+  "headline": "5-8 word Hinglish headline — confirmed facts only, correct spelling",
+  "image_summary": "2 Hinglish sentences (max 30 words) — what's happening in the video/image"
 }}
 """
     try:
@@ -1281,6 +1358,7 @@ def generate_narration(news_item: dict, headline: str, summary: str,
             "kisi specific animal ka naam mat lo jo video mein na ho.\n"
         )
 
+    import random as _rand
     if is_rt:
         opening_style = (
             "Ye ek REAL wildlife observation hai — abhi is waqt captured.\n"
@@ -1288,12 +1366,28 @@ def generate_narration(news_item: dict, headline: str, summary: str,
             "Urgency + wonder — jaise NatGeo ka cameraman abhi wahan maujood ho."
         )
     else:
-        opening_style = (
-            "Ye ek wildlife documentary scene hai.\n"
-            "Open with powerful scene-setting: location, environment, atmosphere.\n"
-            "'Duniya ke is kone mein...' / 'Karod saalon ki evolution ne...' / 'Jab raat dhalta hai...'\n"
-            "Animal ko protagonist ki tarah present karo — uski struggle, survival, beauty."
-        )
+        narration_styles = [
+            # Style 1: Classic NatGeo documentary
+            (
+                "CLASSIC DOCUMENTARY: Powerful scene-setting se shuru karo.\n"
+                "'Duniya ke is kone mein...' / 'Karod saalon ki evolution ne...' / 'Jab raat dhalta hai...'\n"
+                "Animal ko protagonist ki tarah present karo — uski struggle, survival, beauty."
+            ),
+            # Style 2: Intimate whisper (Planet Earth II style)
+            (
+                "INTIMATE WHISPER STYLE (Planet Earth II): Ekdum close-up angle.\n"
+                "Jaise sirf tum aur ye animal — baaki duniya exist hi nahi karti.\n"
+                "'Is pal mein...' / 'Sirf kuch kadam ki doori pe...' / 'Ye aankhein jo dekh rahi hain...'\n"
+                "Sensory details — smell, sound, texture — use karo."
+            ),
+            # Style 3: Wonder + Science (David Attenborough style)
+            (
+                "WONDER + SCIENCE (Attenborough style): Amazement + ek surprising scientific fact.\n"
+                "Shuruaat ek question se: 'Kya tumne kabhi socha...?' / 'Ye creature 200 million saal se...'\n"
+                "Science ko poetry ki tarah explain karo — jargon free, visual metaphors use karo."
+            ),
+        ]
+        opening_style = _rand.choice(narration_styles)
 
     try:
         client = Groq(api_key=GROQ_API_KEY)
@@ -1950,7 +2044,7 @@ def run_agent():
 
     all_news = []
 
-    # Fetch all RSS sources in parallel — ~10x faster than sequential
+    # Fetch all sources in parallel — 13 RSS + 2 API sources
     rss_sources = [
         fetch_natgeo_animals,
         fetch_bbc_wildlife,
@@ -1960,10 +2054,16 @@ def run_agent():
         fetch_smithsonian_nature,
         fetch_audubon_birds,
         fetch_earthsky_nature,
+        # New sources
+        fetch_sciencedaily_animals,
+        fetch_guardian_environment,
+        fetch_physorg_animals,
+        fetch_wildaid_news,
+        fetch_wcs_news,
     ]
 
-    print("\n[Fetch] Parallel fetching all sources...")
-    with ThreadPoolExecutor(max_workers=8) as ex:
+    print("\n[Fetch] Parallel fetching all 15 sources...")
+    with ThreadPoolExecutor(max_workers=15) as ex:
         api_futures  = {ex.submit(fetch_inaturalist_obs): "inat",
                         ex.submit(fetch_gbif_species):    "gbif"}
         rss_futures  = {ex.submit(fn): fn.__name__ for fn in rss_sources}
@@ -1982,9 +2082,10 @@ def run_agent():
                 print(f"      Source error: {e}")
 
     # DuckDuckGo fallback only if very few results
-    if len(all_news) < 3:
-        for topic in WILDLIFE_TOPICS[:2]:
-            results = fetch_news(topic, max_results=3)
+    if len(all_news) < 5:
+        import random as _rand
+        for topic in _rand.sample(WILDLIFE_TOPICS, min(3, len(WILDLIFE_TOPICS))):
+            results = fetch_news(topic, max_results=4)
             all_news.extend(results)
 
     all_news = [n for n in all_news if n.get("image")]

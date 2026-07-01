@@ -1,15 +1,16 @@
-name: Atlantis Wildlife — YouTube Shorts (5×/day)
+name: Atlantis Wildlife — YouTube Shorts (6×/day)
 
-# Budget: 5 uploads × 1600 units = 8,000/day (hard limit: 10,000)
-# Schedule offset from Instagram (post.yml) so they don't run simultaneously
+# Budget: 6 uploads × 1600 units = 9,600/day (safe under 10,000 limit)
+# Staggered 15 min after Instagram runs to avoid simultaneous load
 
 on:
   schedule:
-    - cron: '0 2 * * *'     # IST 07:30
-    - cron: '0 5 * * *'     # IST 10:30
-    - cron: '30 8 * * *'    # IST 14:00
-    - cron: '0 12 * * *'    # IST 17:30
-    - cron: '0 15 * * *'    # IST 20:30
+    - cron: '45 1 * * *'    # IST 07:15
+    - cron: '45 4 * * *'    # IST 10:15
+    - cron: '45 8 * * *'    # IST 14:15
+    - cron: '45 12 * * *'   # IST 18:15
+    - cron: '45 14 * * *'   # IST 20:15
+    - cron: '45 16 * * *'   # IST 22:15
   workflow_dispatch:
 
 jobs:
