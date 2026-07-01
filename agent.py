@@ -584,7 +584,7 @@ JSON:
 {{
   "caption": "caption in chosen style, no hashtags, Hinglish",
   "hashtags": "#Wildlife #WildIndia #NatureIndia #IndianWildlife #AnimalPhotography #WildlifePhotography #NatureLovers #Conservation #SaveWildlife #WildAnimal #BBCEarth #NatGeo #AtlantisWildlife #JungleLife #WildlifeConservation #Biodiversity #NatureIsBeautiful #WildBeauty #AnimalsOfInstagram #NaturePhotography",
-  "image_keyword": "2-3 word English description of the animal/scene for video search",
+  "video_search_query": "3-5 word stock footage search term — exact species + action + habitat. Examples: 'Bengal tiger drinking river', 'humpback whale breach ocean', 'snow leopard hunting mountain', 'elephant herd crossing savanna'. NEVER generic like 'wildlife conservation' or 'animal nature'.",
   "emoji_title": "1-2 emoji + 3-4 word title",
   "headline": "5-8 word Hinglish headline — confirmed facts only, correct spelling",
   "image_summary": "2 Hinglish sentences (max 30 words) — what's happening in the video/image"
@@ -610,7 +610,7 @@ JSON:
         return {
             "caption": news_item.get('title', 'Amazing Wildlife!'),
             "hashtags": "#Wildlife #Nature #Animals #WildIndia",
-            "image_keyword": "wildlife animal nature",
+            "video_search_query": "wildlife animal nature",
             "emoji_title": "🦁 Wildlife",
             "headline": news_item.get('title', 'Wildlife')[:50],
             "image_summary": "",
@@ -1097,33 +1097,37 @@ def fetch_archive_video(keyword: str) -> tuple[str | None, str]:
     return None, ""
 
 
-def fetch_pexels_video(keyword: str) -> str | None:
-    """Pexels — free wildlife stock video"""
+def fetch_pexels_video(keyword: str) -> tuple[str | None, str]:
+    """Pexels — best keyword-relevance stock footage (portrait/vertical preferred)"""
     if not PEXELS_API_KEY:
-        return None
+        return None, ""
     try:
         headers = {"Authorization": PEXELS_API_KEY}
-        resp = requests.get(
-            f"https://api.pexels.com/videos/search?query={keyword}&per_page=8&orientation=portrait",
-            headers=headers, timeout=10
-        )
-        videos = resp.json().get("videos", [])
-        for video in videos:
-            for vf in video.get("video_files", []):
-                if vf.get("file_type") == "video/mp4" and vf.get("height", 0) >= 720:
-                    url = vf["link"]
-                    print(f"      Pexels video: {url[:60]}")
-                    r = requests.get(url, timeout=90, stream=True)
-                    path = os.path.join(tempfile.gettempdir(), f"wildlife_vid_{int(time.time())}.mp4")
-                    with open(path, "wb") as f:
-                        for chunk in r.iter_content(8192):
-                            f.write(chunk)
-                    size_mb = os.path.getsize(path) // 1024 // 1024
-                    print(f"      Downloaded: {size_mb}MB")
-                    return path
+        for orientation in ("portrait", "landscape"):
+            resp = requests.get(
+                "https://api.pexels.com/videos/search",
+                params={"query": keyword, "per_page": 10, "orientation": orientation},
+                headers=headers, timeout=10
+            )
+            videos = resp.json().get("videos", [])
+            for video in videos:
+                title = video.get("url", "").rstrip("/").split("/")[-1].replace("-", " ")
+                for vf in sorted(video.get("video_files", []),
+                                 key=lambda x: x.get("height", 0), reverse=True):
+                    if vf.get("file_type") == "video/mp4" and vf.get("height", 0) >= 720:
+                        url = vf["link"]
+                        print(f"      Pexels: {title[:50]} ({vf['height']}p)")
+                        r = requests.get(url, timeout=90, stream=True)
+                        path = os.path.join(tempfile.gettempdir(), f"wildlife_vid_{int(time.time())}.mp4")
+                        with open(path, "wb") as f:
+                            for chunk in r.iter_content(8192):
+                                f.write(chunk)
+                        if os.path.getsize(path) > 100_000:
+                            return path, title or keyword
+                        os.remove(path)
     except Exception as e:
         print(f"      Pexels video error: {e}")
-    return None
+    return None, ""
 
 
 def fetch_wikimedia_video(keyword: str) -> tuple[str | None, str]:
@@ -1243,91 +1247,96 @@ def fetch_article_video(article_url: str) -> str | None:
 
 def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") -> tuple[str | None, str]:
     """
-    Video priority (actual video title returned as topic for narration accuracy):
+    Video priority — specific keyword (AI-generated) used throughout, NO source override.
       1. Article direct MP4
-      2. USFWS Digital Library     (most reliable wildlife govt source)
-      3. NPS National Park Service (national park wildlife, yt-dlp)
-      4. NOAA Ocean Exploration    (marine keywords + general)
-      5. USGS ScienceBase          (wildlife science)
-      6. Wikimedia Commons         (CC licensed, webm auto-converted)
-      7. NASA Image Library        (wildlife filtered)
-      8. Internet Archive          (CC0 wildlife documentaries — reliable fallback)
-      9. Pixabay                   (CC0, if key available)
+      2. Pexels     (best keyword relevance for specific animals/scenes)
+      3. Pixabay    (CC0, good keyword matching)
+      4. Wikimedia  (CC licensed, webm auto-converted)
+      5. Archive.org (CC0 wildlife documentaries)
+      6. USFWS      (US govt library — broader, less specific)
+      7. NPS        (national park clips)
+      8. NOAA       (marine keywords only)
+      9. USGS       (science footage)
+     10. NASA       (strictly filtered)
+     11. Last resort: Archive with generic keyword
     """
-    source_lower = source.lower()
-    video_keyword = keyword
-    for key, val in WILDLIFE_VIDEO_KEYWORDS.items():
-        if key in source_lower:
-            video_keyword = val
-            break
-
-    print(f"\n      [Video] '{video_keyword}' | source: {source}")
+    print(f"\n      [Video] '{keyword}' | source: {source}")
 
     # 1. Article direct MP4
     if article_url:
         path = fetch_article_video(article_url)
         if path:
-            return path, video_keyword
+            return path, keyword
 
-    # 2. USFWS — US govt wildlife library (only real video types now)
+    # 2. Pexels — best keyword-to-footage relevance (portrait stock footage)
+    if PEXELS_API_KEY:
+        print(f"      Trying Pexels...")
+        path, title = fetch_pexels_video(keyword)
+        if path:
+            return path, title or keyword
+
+    # 3. Pixabay — CC0, good keyword search
+    if PIXABAY_API_KEY:
+        print(f"      Trying Pixabay...")
+        path, title = fetch_pixabay_video(keyword)
+        if path:
+            return path, title or keyword
+
+    # 4. Wikimedia Commons — CC licensed (webm auto-converted to mp4)
+    print(f"      Trying Wikimedia...")
+    path, title = fetch_wikimedia_video(keyword)
+    if path:
+        return path, title or keyword
+
+    # 5. Internet Archive — CC0 wildlife documentary library
+    print(f"      Trying Internet Archive...")
+    path, title = fetch_archive_video(keyword)
+    if path:
+        return path, title or keyword
+
+    # 6. USFWS — US govt wildlife library
     print(f"      Trying USFWS...")
-    path, title = fetch_usfws_video(video_keyword)
+    path, title = fetch_usfws_video(keyword)
     if path:
-        return path, title or video_keyword
+        return path, title or keyword
 
-    # 3. NPS — Yellowstone, Everglades, national park wildlife
+    # 7. NPS — national park wildlife
     print(f"      Trying NPS...")
-    path, title = fetch_nps_video(video_keyword)
+    path, title = fetch_nps_video(keyword)
     if path:
-        return path, title or video_keyword
+        return path, title or keyword
 
-    # 4. NOAA — ocean/marine wildlife
-    is_marine = any(w in video_keyword.lower() for w in
+    # 8. NOAA — marine/ocean only
+    is_marine = any(w in keyword.lower() for w in
                     ["ocean", "marine", "sea", "whale", "shark", "fish", "coral", "deep"])
     if is_marine:
         print(f"      Trying NOAA (marine)...")
-        path, title = fetch_noaa_video(video_keyword)
+        path, title = fetch_noaa_video(keyword)
         if path:
-            return path, title or video_keyword
+            return path, title or keyword
 
-    # 5. USGS — bears, salmon, polar wildlife
+    # 9. USGS — science footage
     print(f"      Trying USGS...")
-    path, title = fetch_usgs_video(video_keyword)
+    path, title = fetch_usgs_video(keyword)
     if path:
-        return path, title or video_keyword
+        return path, title or keyword
 
-    # 6. Wikimedia Commons — CC licensed (webm auto-converted to mp4)
-    print(f"      Trying Wikimedia...")
-    path, title = fetch_wikimedia_video(video_keyword)
-    if path:
-        return path, title or video_keyword
-
-    # 7. NASA — wildlife strictly filtered
+    # 10. NASA — strictly filtered
     print(f"      Trying NASA (filtered)...")
-    path, title = fetch_nasa_video(video_keyword)
+    path, title = fetch_nasa_video(keyword)
     if path:
-        return path, title or video_keyword
+        return path, title or keyword
 
-    # 8. Internet Archive — large CC0 wildlife documentary library
-    print(f"      Trying Internet Archive...")
-    path, title = fetch_archive_video(video_keyword)
-    if path:
-        return path, title or video_keyword
-
-    # 9. Pixabay — CC0 stock (if key available)
-    if PIXABAY_API_KEY:
-        print(f"      Trying Pixabay...")
-        path, title = fetch_pixabay_video(video_keyword)
+    # Last resort: retry Pexels + Archive with generic keyword
+    if PEXELS_API_KEY:
+        path, title = fetch_pexels_video("wildlife animal nature")
         if path:
-            return path, title or video_keyword
-
-    # Last resort: retry with broader "wildlife animal" keyword on Archive
-    print(f"      Trying Archive with generic wildlife query...")
+            return path, title or "wildlife animal"
     path, title = fetch_archive_video("wildlife animal nature")
     if path:
         return path, title or "wildlife animal"
 
-    print(f"      No video found for '{video_keyword}'")
+    print(f"      No video found for '{keyword}'")
     return None, ""
 
 
@@ -2126,7 +2135,7 @@ def run_agent():
         caption  = content.get("caption", "")
 
         media_id = None
-        keyword  = content.get("image_keyword", "wildlife animal nature")
+        keyword  = content.get("video_search_query", content.get("image_keyword", "wildlife animal nature"))
 
         # Fetch video FIRST — then narrate about what's actually in the video
         video_path, video_topic = fetch_wildlife_video(
