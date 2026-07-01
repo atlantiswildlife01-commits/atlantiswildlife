@@ -2143,28 +2143,23 @@ def run_agent():
                 pass
 
             if reel_path:
-                # YouTube Shorts
-                yt_id = None
-                if YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET and YOUTUBE_REFRESH_TOKEN:
-                    yt_id = upload_youtube_short(reel_path, headline, caption)
+                # --- YouTube DISABLED — channel set up hone par uncomment karo ---
+                # yt_id = None
+                # if YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET and YOUTUBE_REFRESH_TOKEN:
+                #     yt_id = upload_youtube_short(reel_path, headline, caption)
+                # ------------------------------------------------------------------
 
-                # Instagram Reel
-                if not YOUTUBE_ONLY:
-                    video_url = upload_video_github(reel_path)
+                # Instagram only
+                video_url = upload_video_github(reel_path)
                 try:
                     os.remove(reel_path)
                 except:
                     pass
 
-                if not YOUTUBE_ONLY and video_url:
+                if video_url:
                     media_id = post_reel(video_url, caption)
-                elif yt_id:
-                    media_id = f"yt_{yt_id}"
 
         if not media_id:
-            if YOUTUBE_ONLY:
-                print("      Reel fail — skipping (YouTube-only mode)")
-            else:
                 print("      Reel fail — photo post pe fallback")
                 img_url = add_watermark(
                     news.get("image"),

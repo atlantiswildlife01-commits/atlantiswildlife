@@ -15,6 +15,7 @@ on:
 
 jobs:
   youtube:
+    if: false  # YouTube channel not set up yet — re-enable when ready
     runs-on: ubuntu-latest
     permissions:
       contents: write
