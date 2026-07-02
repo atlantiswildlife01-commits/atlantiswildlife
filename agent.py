@@ -1268,12 +1268,19 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
         if path:
             return path, keyword
 
-    # 2. Pexels — best keyword-to-footage relevance (portrait stock footage)
+    # 2. Pexels — best keyword-to-footage relevance, smart retry with simpler keywords
     if PEXELS_API_KEY:
-        print(f"      Trying Pexels...")
-        path, title = fetch_pexels_video(keyword)
-        if path:
-            return path, title or keyword
+        words = keyword.split()
+        pexels_attempts = [keyword]
+        if len(words) > 2:
+            pexels_attempts.append(" ".join(words[:2]))   # first 2 words
+        if len(words) > 1:
+            pexels_attempts.append(words[0])              # just species name
+        for kw in pexels_attempts:
+            print(f"      Trying Pexels: '{kw}'")
+            path, title = fetch_pexels_video(kw)
+            if path:
+                return path, title or kw
 
     # 3. Pixabay — CC0, good keyword search
     if PIXABAY_API_KEY:
@@ -1345,27 +1352,11 @@ REALTIME_SOURCES = {"iNaturalist", "GBIF Wildlife"}
 
 def generate_narration(news_item: dict, headline: str, summary: str,
                        video_topic: str = "") -> str:
-    """Groq se 30-second wildlife Reel narration — video_topic se match karta hai"""
+    """Groq se 30-second wildlife Reel narration — news story pe focused"""
     source = news_item.get("source", "")
     title  = news_item.get("title", "")
     body   = news_item.get("body", "")[:500]
     is_rt  = any(s in source for s in REALTIME_SOURCES)
-
-    # Video topic se visual context banao
-    visual_context = ""
-    if video_topic and video_topic not in ("wildlife animal nature", ""):
-        visual_context = (
-            f"\nVIDEO MEIN KYA DIKH RAHA HAI: '{video_topic}'\n"
-            f"Narration ISKO describe kare — viewer yahi dekh raha hai screen pe.\n"
-            f"Agar news topic alag hai, to thematically connect karo — "
-            f"lekin visual description video ke animal/scene ke baare mein hi ho.\n"
-        )
-    else:
-        visual_context = (
-            "\nVideo mein general wildlife footage hai.\n"
-            "Narration wildlife aur nature ke baare mein broadly bolo — "
-            "kisi specific animal ka naam mat lo jo video mein na ho.\n"
-        )
 
     import random as _rand
     if is_rt:
@@ -1410,14 +1401,14 @@ Ek 30-second documentary narration likho — poetic, authoritative, awe-inspirin
 News Topic: {title}
 Details: {body}
 Summary: {summary}
-{visual_context}
 {opening_style}
 
 NATGEO NARRATOR STYLE — STRICT:
+- NEWS KI STORY sunao — video sirf background hai, usse describe mat karo
 - HEADLINE BILKUL MAT PADHO — screen pe already dikh raha hai
 - ~90-100 words — exactly 30 seconds ke liye
 - Scene se shuru karo — environment, light, sound imagine karo
-- Animal ko hero ki tarah present karo — uski strength, instinct, survival
+- Animal/nature ko hero ki tarah present karo — strength, instinct, survival
 - Scientific fact ek do — lekin poetic language mein
 - End mein ek profound thought ya conservation message
 - Hindi dominant, English sirf technical terms ke liye
@@ -1658,7 +1649,7 @@ def process_reel(video_path: str, headline: str, summary: str, narration: str = 
                 ], capture_output=True, timeout=10)
                 streams = _json.loads(probe.stdout).get("streams", [{}])
                 reel_dur = float(streams[0].get("duration", 30.0))
-                reel_dur = min(reel_dur + 0.3, 58.0)
+                reel_dur = min(reel_dur + 0.3, 88.0)
                 print(f"      Audio duration: {reel_dur:.1f}s")
             except Exception:
                 reel_dur = 30.0
