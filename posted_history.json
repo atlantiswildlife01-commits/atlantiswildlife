@@ -25,7 +25,8 @@
     "eastern cardinal spotted — williston north, williston, vt, usa",
     "spider-tailed horned viper spotted — ilam, ir",
     "rabbs' fringe-limbed treefrog spotted — panama",
-    "mountain bluebird spotted — eagle butte road"
+    "mountain bluebird spotted — eagle butte road",
+    "taiga merlin spotted — san benito county, ca, usa"
   ],
   "images": [
     "https://inaturalist-open-data.s3.amazonaws.com/photos/7342766/large.jpg",
@@ -53,7 +54,8 @@
     "https://inaturalist-open-data.s3.amazonaws.com/photos/33033499/large.jpg",
     "https://static.inaturalist.org/photos/30753825/large.jpg",
     "https://inaturalist-open-data.s3.amazonaws.com/photos/111927428/large.jpg",
-    "https://static.inaturalist.org/photos/270742961/large.jpeg"
+    "https://static.inaturalist.org/photos/270742961/large.jpeg",
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/30048824/large.jpg"
   ],
-  "updated": "2026-07-02T16:19:02.306755"
+  "updated": "2026-07-02T18:23:36.002500"
 }
