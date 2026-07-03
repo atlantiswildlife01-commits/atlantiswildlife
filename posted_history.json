@@ -27,7 +27,8 @@
     "rabbs' fringe-limbed treefrog spotted — panama",
     "mountain bluebird spotted — eagle butte road",
     "taiga merlin spotted — san benito county, ca, usa",
-    "spix's macaw spotted — bahia, br"
+    "spix's macaw spotted — bahia, br",
+    "green bamboo leaf pit viper spotted — leporiang, arunachal pradesh"
   ],
   "images": [
     "https://inaturalist-open-data.s3.amazonaws.com/photos/7342766/large.jpg",
@@ -57,7 +58,8 @@
     "https://inaturalist-open-data.s3.amazonaws.com/photos/111927428/large.jpg",
     "https://static.inaturalist.org/photos/270742961/large.jpeg",
     "https://inaturalist-open-data.s3.amazonaws.com/photos/30048824/large.jpg",
-    "https://static.inaturalist.org/photos/79710834/large.jpg"
+    "https://static.inaturalist.org/photos/79710834/large.jpg",
+    "https://static.inaturalist.org/photos/77969951/large.jpg"
   ],
-  "updated": "2026-07-02T20:40:41.140398"
+  "updated": "2026-07-03T11:21:25.262407"
 }
