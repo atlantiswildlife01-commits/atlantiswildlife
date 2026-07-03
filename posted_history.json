@@ -28,7 +28,8 @@
     "mountain bluebird spotted — eagle butte road",
     "taiga merlin spotted — san benito county, ca, usa",
     "spix's macaw spotted — bahia, br",
-    "green bamboo leaf pit viper spotted — leporiang, arunachal pradesh"
+    "green bamboo leaf pit viper spotted — leporiang, arunachal pradesh",
+    "secret toadhead agama spotted — yashkul'skiy rayon, ru-kl, ru"
   ],
   "images": [
     "https://inaturalist-open-data.s3.amazonaws.com/photos/7342766/large.jpg",
@@ -59,7 +60,8 @@
     "https://static.inaturalist.org/photos/270742961/large.jpeg",
     "https://inaturalist-open-data.s3.amazonaws.com/photos/30048824/large.jpg",
     "https://static.inaturalist.org/photos/79710834/large.jpg",
-    "https://static.inaturalist.org/photos/77969951/large.jpg"
+    "https://static.inaturalist.org/photos/77969951/large.jpg",
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/38711601/large.jpeg"
   ],
-  "updated": "2026-07-03T11:21:25.262407"
+  "updated": "2026-07-03T12:26:15.675856"
 }
