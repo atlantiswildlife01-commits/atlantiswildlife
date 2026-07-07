@@ -1386,8 +1386,28 @@ def generate_narration(news_item: dict, headline: str, summary: str,
                 "Shuruaat ek question se: 'Kya tumne kabhi socha...?' / 'Ye creature 200 million saal se...'\n"
                 "Science ko poetry ki tarah explain karo — jargon free, visual metaphors use karo."
             ),
+            # Style 4: Shocking number hook
+            (
+                "SHOCKING NUMBER HOOK: Ek mind-blowing stat ya record se seedha shuru karo.\n"
+                "'Ye janwar 60 km/h se tez daudta hai...' / '40 crore saalon se ye species exist karti hai...'\n"
+                "Number drop karo, phir context — awe build karo slowly."
+            ),
+            # Style 5: Extinction / conservation urgency
+            (
+                "CONSERVATION URGENCY: Is species ki kahani — agar ye kho gayi toh kya hoga?\n"
+                "'Duniya mein sirf 400 bache hain...' / 'Agar ye chain toot gayi toh...'\n"
+                "Emotional connection + ek konkret solution ya hope."
+            ),
+            # Style 6: India-local angle
+            (
+                "INDIA SPOTLIGHT: Indian jungles, forests, rivers ka angle lo.\n"
+                "'Hamare desh ke is jungle mein...' / 'Jim Corbett se Sundarbans tak...'\n"
+                "Indian context — local species, local forests, desi biodiversity ka pride jagao."
+            ),
         ]
-        opening_style = _rand.choice(narration_styles)
+        # Hourly rotation — har ghante naya style
+        style_idx = (int(time.time()) // 3600) % len(narration_styles)
+        opening_style = narration_styles[style_idx]
 
     try:
         client = Groq(api_key=GROQ_API_KEY)
@@ -1563,20 +1583,19 @@ def _tts_sarvam(text: str, out_path: str) -> bool:
 
 
 def _tts_edge(text: str, out_path: str) -> bool:
-    """Edge TTS — try multiple Hindi voices, best quality first"""
-    # Voice priority:
-    # AnanyaNeural  — newer female, clearest Hindi pronunciation
-    # MadhurNeural  — deep male, NatGeo documentary feel
-    # SwaraNeural   — original female fallback
+    """Edge TTS — hourly voice rotation for content variety"""
     VOICES = [
         ("hi-IN-AnanyaNeural", "-3%",  "-1Hz", "+15%"),
         ("hi-IN-MadhurNeural", "-5%",  "+0Hz", "+12%"),
         ("hi-IN-SwaraNeural",  "-5%",  "-2Hz", "+15%"),
     ]
+    # Hourly rotation — content variety, avoid same voice every post
+    voice_idx = (int(time.time()) // 3600) % len(VOICES)
+    ordered   = VOICES[voice_idx:] + VOICES[:voice_idx]
     try:
         import asyncio, edge_tts
 
-        for voice, rate, pitch, volume in VOICES:
+        for voice, rate, pitch, volume in ordered:
             try:
                 async def _speak(v=voice, r=rate, p=pitch, vol=volume):
                     comm = edge_tts.Communicate(text, voice=v,
@@ -1586,7 +1605,7 @@ def _tts_edge(text: str, out_path: str) -> bool:
                 asyncio.run(_speak())
                 if os.path.exists(out_path) and os.path.getsize(out_path) > 1000:
                     _normalize_audio(out_path)
-                    print(f"      Edge TTS ({voice}) ready")
+                    print(f"      Edge TTS ({voice}, slot {voice_idx}) ready")
                     return True
             except Exception:
                 continue
@@ -1797,8 +1816,12 @@ def process_reel(video_path: str, headline: str, summary: str, narration: str = 
                 pass
 
         if result.returncode == 0 and os.path.exists(out_path):
-            size_mb = os.path.getsize(out_path) // 1024 // 1024
-            print(f"      Reel ready: {size_mb}MB {'(with audio)' if has_audio else ''}")
+            size_bytes = os.path.getsize(out_path)
+            size_kb    = size_bytes // 1024
+            print(f"      Reel ready: {size_kb}KB {'(with audio)' if has_audio else '(silent)'}")
+            if size_bytes < 10_000:
+                print(f"      WARNING: reel too small ({size_bytes}B) — skipping")
+                return None
             return out_path
         print(f"      FFmpeg error: {result.stderr[-150:].decode(errors='ignore')}")
     except Exception as e:
@@ -1807,49 +1830,32 @@ def process_reel(video_path: str, headline: str, summary: str, narration: str = 
 
 
 def upload_video_github(video_path: str) -> str | None:
-    """Reel video GitHub Release pe upload karo"""
+    """GitHub Contents API — reliable upload"""
+    import base64
     gh_token = (os.getenv("GH_PAT") or os.getenv("GITHUB_TOKEN") or "").strip()
-    repo = os.getenv("GITHUB_REPOSITORY")
+    repo     = os.getenv("GITHUB_REPOSITORY", "")
     if not gh_token or not repo:
+        print("      GitHub token ya repo missing")
         return None
-    headers = {
-        "Authorization": f"token {gh_token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    filename = f"wildlife_reel_{int(time.time())}.mp4"
     try:
-        releases = requests.get(
-            f"https://api.github.com/repos/{repo}/releases",
-            headers=headers, timeout=10
-        ).json()
-        upload_url = None
-        for rel in (releases if isinstance(releases, list) else []):
-            if rel.get("tag_name") == "media-assets":
-                upload_url = rel["upload_url"].split("{")[0]
-                break
-        if not upload_url:
-            create = requests.post(
-                f"https://api.github.com/repos/{repo}/releases",
-                headers=headers,
-                json={"tag_name": "media-assets", "name": "Media Assets",
-                      "draft": False, "body": "Auto-generated wildlife reels"},
-                timeout=10
-            ).json()
-            upload_url = create.get("upload_url", "").split("{")[0]
-        if not upload_url:
-            return None
-        size_mb = os.path.getsize(video_path) // 1024 // 1024
-        print(f"      GitHub upload ({size_mb}MB)...")
         with open(video_path, "rb") as f:
-            up = requests.post(
-                f"{upload_url}?name={filename}",
-                headers={**headers, "Content-Type": "video/mp4"},
-                data=f, timeout=300
-            ).json()
-        url = up.get("browser_download_url", "")
+            content = base64.b64encode(f.read()).decode()
+        filename = f"wildlife_reel_{int(time.time())}.mp4"
+        api_url  = f"https://api.github.com/repos/{repo}/contents/reels/{filename}"
+        size_kb  = os.path.getsize(video_path) // 1024
+        print(f"      GitHub upload ({size_kb}KB)...")
+        resp = requests.put(
+            api_url,
+            headers={"Authorization": f"token {gh_token}",
+                     "Content-Type": "application/json"},
+            json={"message": f"reel: {filename}", "content": content, "branch": "main"},
+            timeout=300
+        )
+        url = resp.json().get("content", {}).get("download_url")
         if url:
-            print(f"      Video URL: {url[:80]}")
+            print(f"      GitHub URL: {url[:80]}")
             return url
+        print(f"      GitHub upload error: {resp.json()}")
     except Exception as e:
         print(f"      GitHub upload error: {e}")
     return None
