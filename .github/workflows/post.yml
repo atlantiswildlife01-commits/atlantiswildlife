@@ -1,12 +1,17 @@
-name: Atlantis Wildlife — Instagram Reels (5×/day)
+name: Atlantis Wildlife — Instagram Reels (10x/day)
 
 on:
   schedule:
-    - cron: '30 1 * * *'    # IST 07:00 — morning coffee scroll
-    - cron: '30 4 * * *'    # IST 10:00 — mid-morning
-    - cron: '30 8 * * *'    # IST 14:00 — lunch break
-    - cron: '30 12 * * *'   # IST 18:00 — evening commute
-    - cron: '30 15 * * *'   # IST 21:00 — prime time
+    - cron: '30 0 * * *'    # IST 06:00
+    - cron: '0 2 * * *'     # IST 07:30
+    - cron: '30 3 * * *'    # IST 09:00
+    - cron: '0 5 * * *'     # IST 10:30
+    - cron: '30 6 * * *'    # IST 12:00
+    - cron: '0 8 * * *'     # IST 13:30
+    - cron: '30 9 * * *'    # IST 15:00
+    - cron: '30 11 * * *'   # IST 17:00
+    - cron: '30 13 * * *'   # IST 19:00
+    - cron: '30 15 * * *'   # IST 21:00
   workflow_dispatch:
 
 jobs:
@@ -14,8 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - uses: actions/checkout@v4
@@ -30,15 +33,8 @@ jobs:
       - name: System packages
         run: sudo apt-get install -y fonts-noto fonts-noto-extra ffmpeg
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: wildlife-pip-${{ hashFiles('**/requirements*.txt') }}-v1
-          restore-keys: wildlife-pip-
-
       - name: Install dependencies
-        run: pip install ddgs groq requests Pillow python-dotenv PyNaCl gtts edge-tts yt-dlp internetarchive
+        run: pip install ddgs groq requests Pillow python-dotenv PyNaCl gtts edge-tts yt-dlp
 
       - name: Configure git
         run: |
@@ -46,20 +42,16 @@ jobs:
           git config --global user.name "Atlantis Wildlife Bot"
           git remote set-url origin https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ github.repository }}.git
 
-      - name: Post Wildlife Reels
+      - name: Post wildlife reels
         env:
-          GROQ_API_KEY:                        ${{ secrets.GROQ_API_KEY }}
-          PEXELS_API_KEY:                      ${{ secrets.PEXELS_API_KEY }}
-          IMGBB_API_KEY:                       ${{ secrets.IMGBB_API_KEY }}
-          GH_PAT:                              ${{ secrets.GH_PAT }}
-          GITHUB_REPOSITORY:                   ${{ github.repository }}
-          WILDLIFE_INSTAGRAM_ACCESS_TOKEN:     ${{ secrets.WILDLIFE_INSTAGRAM_ACCESS_TOKEN }}
-          WILDLIFE_INSTAGRAM_ACCOUNT_ID:       ${{ secrets.WILDLIFE_INSTAGRAM_ACCOUNT_ID }}
-          NPS_API_KEY:                         ${{ secrets.NPS_API_KEY }}
-          PIXABAY_API_KEY:                     ${{ secrets.PIXABAY_API_KEY }}
-          GOOGLE_TTS_API_KEY:                  ${{ secrets.GOOGLE_TTS_API_KEY }}
-          SARVAM_API_KEY:                      ${{ secrets.SARVAM_API_KEY }}
-          YOUTUBE_CLIENT_ID:                   ${{ secrets.YOUTUBE_WILDLIFE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET:               ${{ secrets.YOUTUBE_WILDLIFE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN:               ${{ secrets.YOUTUBE_WILDLIFE_REFRESH_TOKEN }}
+          GROQ_API_KEY:                     ${{ secrets.GROQ_API_KEY }}
+          PEXELS_API_KEY:                   ${{ secrets.PEXELS_API_KEY }}
+          IMGBB_API_KEY:                    ${{ secrets.IMGBB_API_KEY }}
+          PIXABAY_API_KEY:                  ${{ secrets.PIXABAY_API_KEY }}
+          NPS_API_KEY:                      ${{ secrets.NPS_API_KEY }}
+          GH_PAT:                           ${{ secrets.GH_PAT }}
+          GITHUB_REPOSITORY:                ${{ github.repository }}
+          GITHUB_TOKEN:                     ${{ secrets.GITHUB_TOKEN }}
+          WILDLIFE_INSTAGRAM_ACCESS_TOKEN:  ${{ secrets.WILDLIFE_INSTAGRAM_ACCESS_TOKEN }}
+          WILDLIFE_INSTAGRAM_ACCOUNT_ID:    ${{ secrets.WILDLIFE_INSTAGRAM_ACCOUNT_ID }}
         run: python agent.py
