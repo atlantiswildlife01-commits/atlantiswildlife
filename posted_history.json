@@ -47,7 +47,8 @@
     "namib sand gecko spotted — gibeon, , hardap, na",
     "red-eared slider spotted — parque taquaral, campinas - sp, brasil",
     "panda ant spotted — pirque, santiago metropolitan region, chile",
-    "formosan rock macaque spotted — xiulin township, hualien county, taiwan 972"
+    "formosan rock macaque spotted — xiulin township, hualien county, taiwan 972",
+    "mexican tiger salamander spotted — méxico, mx"
   ],
   "images": [
     "https://inaturalist-open-data.s3.amazonaws.com/photos/7342766/large.jpg",
@@ -97,7 +98,8 @@
     "https://static.inaturalist.org/photos/42093156/large.jpg",
     "https://inaturalist-open-data.s3.amazonaws.com/photos/28808533/large.jpeg",
     "https://inaturalist-open-data.s3.amazonaws.com/photos/43480610/large.jpg",
-    "https://inaturalist-open-data.s3.amazonaws.com/photos/354793564/large.jpg"
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/354793564/large.jpg",
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/79399987/large.jpg"
   ],
-  "updated": "2026-07-08T12:10:29.816171"
+  "updated": "2026-07-08T13:23:18.507816"
 }
