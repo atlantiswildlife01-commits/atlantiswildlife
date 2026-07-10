@@ -50,7 +50,8 @@
     "formosan rock macaque spotted — xiulin township, hualien county, taiwan 972",
     "mexican tiger salamander spotted — méxico, mx",
     "frosted phoenix spotted — oban 9818, new zealand",
-    "spectacled bear spotted — pichincha, ec"
+    "spectacled bear spotted — pichincha, ec",
+    "sulawesi moon moth spotted — sulawesi tengah, id"
   ],
   "images": [
     "https://inaturalist-open-data.s3.amazonaws.com/photos/7342766/large.jpg",
@@ -103,7 +104,8 @@
     "https://inaturalist-open-data.s3.amazonaws.com/photos/354793564/large.jpg",
     "https://inaturalist-open-data.s3.amazonaws.com/photos/79399987/large.jpg",
     "https://inaturalist-open-data.s3.amazonaws.com/photos/357771622/large.jpeg",
-    "https://inaturalist-open-data.s3.amazonaws.com/photos/48437451/large.jpg"
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/48437451/large.jpg",
+    "https://inaturalist-open-data.s3.amazonaws.com/photos/120454809/large.jpg"
   ],
-  "updated": "2026-07-10T12:43:33.645081"
+  "updated": "2026-07-10T13:23:56.240354"
 }
