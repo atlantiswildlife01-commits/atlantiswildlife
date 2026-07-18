@@ -34,6 +34,28 @@ INSTAGRAM_TOKEN      = os.getenv("WILDLIFE_INSTAGRAM_ACCESS_TOKEN")
 INSTAGRAM_ACCOUNT_ID = os.getenv("WILDLIFE_INSTAGRAM_ACCOUNT_ID")
 IMGBB_API_KEY        = os.getenv("IMGBB_API_KEY")
 
+# --- Groq model auto-select: best available model khud pick karo (future-proof) ---
+GROQ_MODEL_PREFERENCES = [
+    "openai/gpt-oss-120b",      # 2026: sabse smart Groq model
+    "llama-3.3-70b-versatile",  # proven fallback
+    "llama-3.1-8b-instant",     # last resort
+]
+
+def _pick_groq_model() -> str:
+    try:
+        r = requests.get("https://api.groq.com/openai/v1/models",
+                         headers={"Authorization": f"Bearer {GROQ_API_KEY}"}, timeout=15)
+        available = {m.get("id") for m in r.json().get("data", [])}
+        for _m in GROQ_MODEL_PREFERENCES:
+            if _m in available:
+                return _m
+    except Exception:
+        pass
+    return "llama-3.3-70b-versatile"
+
+GROQ_MODEL = _pick_groq_model()
+print(f"🧠 Groq model: {GROQ_MODEL}")
+
 CHANNEL_HANDLE  = "@atlantis_wildlife"
 POST_DELAY      = 20
 CAROUSEL_SLIDES = 1
@@ -520,7 +542,7 @@ def smart_plan(all_news: list[dict], count: int = CAROUSEL_SLIDES) -> list[dict]
     try:
         client = Groq(api_key=GROQ_API_KEY)
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             max_tokens=500,
             messages=[{"role": "user", "content": f"""
 Ye wildlife/nature content hai. Visual + emotional + viral potential score do (1-10):
@@ -604,7 +626,7 @@ JSON:
 """
     try:
         message = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             max_tokens=900,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"}
@@ -1424,7 +1446,7 @@ def generate_narration(news_item: dict, headline: str, summary: str,
     try:
         client = Groq(api_key=GROQ_API_KEY)
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             max_tokens=420,
             messages=[{"role": "user", "content": f"""
 Tu National Geographic / BBC Earth ke Hindi narrator ki tarah bol.
