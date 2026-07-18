@@ -1618,16 +1618,26 @@ def _tts_sarvam(text: str, out_path: str) -> bool:
 
 def _tts_edge(text: str, out_path: str) -> bool:
     """Edge TTS — hourly voice rotation for content variety"""
+    # Verified working voices (AnanyaNeural Edge TTS pe exist nahi karti — hata di)
     VOICES = [
-        ("hi-IN-AnanyaNeural", "-3%",  "-1Hz", "+15%"),
-        ("hi-IN-MadhurNeural", "-5%",  "+0Hz", "+12%"),
-        ("hi-IN-SwaraNeural",  "-5%",  "-2Hz", "+15%"),
+        ("hi-IN-MadhurNeural",           "-5%", "+0Hz", "+12%"),  # male, documentary
+        ("hi-IN-SwaraNeural",            "-4%", "-2Hz", "+15%"),  # female, clear Hindi
+        ("en-IN-NeerjaExpressiveNeural", "-2%", "+0Hz", "+15%"),  # female, energetic
+        ("en-IN-PrabhatNeural",          "-4%", "+0Hz", "+15%"),  # male, crisp
+        ("en-IN-NeerjaNeural",           "-3%", "+0Hz", "+15%"),  # female, smooth
     ]
     # Hourly rotation — content variety, avoid same voice every post
     voice_idx = (int(time.time()) // 3600) % len(VOICES)
     ordered   = VOICES[voice_idx:] + VOICES[:voice_idx]
     try:
         import asyncio, edge_tts
+        try:
+            # kuch systems pe aiodns broken hota hai — system DNS resolver force karo
+            import aiohttp.resolver, aiohttp.connector
+            aiohttp.resolver.DefaultResolver = aiohttp.resolver.ThreadedResolver
+            aiohttp.connector.DefaultResolver = aiohttp.resolver.ThreadedResolver
+        except Exception:
+            pass
 
         for voice, rate, pitch, volume in ordered:
             try:
@@ -1652,9 +1662,7 @@ def generate_tts(text: str, out_path: str) -> bool:
     """
     Hindi TTS priority chain:
       1. Sarvam AI bulbul:v1 meera      — Indian language specialist (100 credits)
-      2. Edge TTS AnanyaNeural           — unlimited free, clearest Hindi
-      3. Edge TTS MadhurNeural           — deep documentary male voice
-      4. Edge TTS SwaraNeural            — original fallback
+      2. Edge TTS (5-voice hourly rotation: Madhur/Swara/NeerjaExpressive/Prabhat/Neerja)
       5. gTTS                            — last resort
     All voices go through documentary-grade FFmpeg filter chain.
     """
