@@ -328,8 +328,8 @@ def fetch_inaturalist_obs() -> list[dict]:
             random.shuffle(obs_list)
             for obs in obs_list[:8]:
                 taxon  = obs.get("taxon", {}) or {}
-                name   = taxon.get("preferred_common_name", "") or taxon.get("name", "")
-                sci    = taxon.get("name", "")
+                # Sirf common name — scientific name wale observations skip karo
+                name   = taxon.get("preferred_common_name", "")
                 place  = obs.get("place_guess", "Unknown location")
                 photos = obs.get("photos", [])
                 img    = photos[0].get("url", "").replace("square", "large") if photos else ""
@@ -338,7 +338,7 @@ def fetch_inaturalist_obs() -> list[dict]:
                     print(f"      iNaturalist: {name} @ {place}")
                     results_out.append({
                         "title":  f"{name} Spotted — {place}",
-                        "body":   desc or f"{name} ({sci}) ki ek amazing observation. Location: {place}.",
+                        "body":   desc or f"{name} ki ek amazing observation. Location: {place}.",
                         "image":  img,
                         "source": "iNaturalist",
                         "date":   datetime.now().strftime("%Y-%m-%d"),
@@ -371,8 +371,8 @@ def fetch_gbif_species() -> list[dict]:
             items = resp.json().get("results", [])
             random.shuffle(items)
             for obs in items:
-                name    = obs.get("vernacularName", "") or obs.get("species", "")
-                sci     = obs.get("species", "")
+                # Sirf common name — scientific-only records skip karo
+                name    = obs.get("vernacularName", "")
                 country = obs.get("country", "")
                 media   = obs.get("media", [])
                 img     = media[0].get("identifier", "") if media else ""
@@ -382,7 +382,7 @@ def fetch_gbif_species() -> list[dict]:
                         print(f"      GBIF: {name}, {country}")
                         results_out.append({
                             "title":  f"{name} — Wildlife Observation",
-                            "body":   f"{name} ({sci}) {country} mein observe kiya gaya. GBIF global biodiversity database pe record hai.",
+                            "body":   f"{name} {country} mein observe kiya gaya. GBIF global biodiversity database pe record hai.",
                             "image":  img,
                             "source": "GBIF Wildlife",
                             "date":   datetime.now().strftime("%Y-%m-%d"),
@@ -609,7 +609,9 @@ CAPTION STYLE THIS POST: {chosen_style}
 
 RULES:
 - Wonder + curiosity + amazement — NatGeo photographer ki tarah
-- Hinglish (Hindi dominant, English sirf proper nouns/scientific terms)
+- Hinglish (Hindi dominant, English sirf proper nouns ke liye)
+- SCIENTIFIC/LATIN NAAM KAHIN MAT LIKHO (caption, headline, video_search_query — kahin nahi).
+  GALAT: "Panthera tigris" | SAHI: "Bengal Tiger". Hamesha aam/common naam.
 - 6-8 punchy lines — har line punch honi chahiye, padding nahi
 - End mein ek question ya call-to-action (save, share, comment)
 - India connection dhundo — agar Indian species/place mention ho to highlight karo
@@ -1456,15 +1458,21 @@ Ek 30-second documentary narration likho — poetic, authoritative, awe-inspirin
 News Topic: {title}
 Details: {body}
 Summary: {summary}
+VIDEO MEIN KYA DIKH RAHA HAI: {video_topic or "wildlife footage"}
 {opening_style}
 
 NATGEO NARRATOR STYLE — STRICT:
-- NEWS KI STORY sunao — video sirf background hai, usse describe mat karo
+- SABSE ZAROORI: narration SIRF USI ANIMAL ke baare mein ho jo VIDEO mein dikh raha hai
+  ("VIDEO MEIN KYA DIKH RAHA HAI" dekho). Agar news story usi animal ki hai to story
+  sunao; agar news kisi AUR animal ki hai to news chhod do aur video wale animal ke
+  amazing facts/life story sunao. Viewer jo dekh raha hai wahi sunna chahiye.
+- SCIENTIFIC/LATIN NAAM KABHI MAT BOLO — hamesha aam naam use karo.
+  GALAT: "Panthera tigris", "Ailuropoda melanoleuca" | SAHI: "Bengal Tiger", "Giant Panda", "Baagh"
 - HEADLINE BILKUL MAT PADHO — screen pe already dikh raha hai
 - ~90-100 words — exactly 30 seconds ke liye
 - Scene se shuru karo — environment, light, sound imagine karo
 - Animal/nature ko hero ki tarah present karo — strength, instinct, survival
-- Scientific fact ek do — lekin poetic language mein
+- Scientific fact ek do — lekin poetic language mein, common naam ke saath
 - End mein ek profound thought ya conservation message
 - Hindi dominant, English sirf technical terms ke liye
 - FORBIDDEN: "yaar", "sun", "bhai", "dosto", "chaliye", "dekhte hain"
