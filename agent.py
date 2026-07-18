@@ -1086,6 +1086,40 @@ def fetch_pixabay_video(keyword: str) -> tuple[str | None, str]:
     return None, ""
 
 
+VIDEO_CREDIT = ""   # YouTube CC video use hua to channel credit yahan set hota hai
+
+def fetch_youtube_cc_video(keyword: str) -> tuple[str | None, str]:
+    """YouTube Creative Commons videos — sirf CC-license (legally reusable), 12s-5min"""
+    global VIDEO_CREDIT
+    import subprocess, urllib.parse, random
+    try:
+        # sp=EgIwAQ%253D%253D = YouTube ka Creative Commons license filter
+        url = ("https://www.youtube.com/results?search_query="
+               + urllib.parse.quote(keyword) + "&sp=EgIwAQ%253D%253D")
+        r = subprocess.run(
+            ["yt-dlp", url, "--flat-playlist", "--playlist-items", "1-8",
+             "-J", "--quiet", "--no-warnings"],
+            capture_output=True, text=True, timeout=60
+        )
+        entries = json.loads(r.stdout or "{}").get("entries", []) or []
+        random.shuffle(entries)
+        for e in entries:
+            dur = e.get("duration") or 0
+            if not (12 <= dur <= 300):
+                continue
+            vid   = e.get("id", "")
+            title = (e.get("title") or keyword)[:80]
+            path  = _yt_dlp(f"https://www.youtube.com/watch?v={vid}", "wytcc")
+            if path:
+                channel = e.get("channel") or e.get("uploader") or "YouTube"
+                VIDEO_CREDIT = f"{channel} (YouTube CC)"
+                print(f"      YouTube CC: {title[:50]} | credit: {channel}")
+                return path, title
+    except Exception as e:
+        print(f"      YouTube CC error: {e}")
+    return None, ""
+
+
 def fetch_archive_video(keyword: str) -> tuple[str | None, str]:
     """Internet Archive — CC/public domain wildlife documentaries (reliable fallback)"""
     import random
@@ -1288,6 +1322,7 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
       1. Article direct MP4
       2. Pexels     (best keyword relevance for specific animals/scenes)
       3. Pixabay    (CC0, good keyword matching)
+      3b. YouTube CC (Creative Commons license only — biggest species coverage)
       4. Wikimedia  (CC licensed, webm auto-converted)
       5. Archive.org (CC0 wildlife documentaries)
       6. USFWS      (US govt library — broader, less specific)
@@ -1297,6 +1332,8 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
      10. NASA       (strictly filtered)
      11. Last resort: Archive with generic keyword
     """
+    global VIDEO_CREDIT
+    VIDEO_CREDIT = ""   # har naye fetch pe purana credit reset
     print(f"\n      [Video] '{keyword}' | source: {source}")
 
     # 1. Article direct MP4
@@ -1325,6 +1362,12 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
         path, title = fetch_pixabay_video(keyword)
         if path:
             return path, title or keyword
+
+    # 3b. YouTube Creative Commons — sabse bada species coverage, CC license only
+    print(f"      Trying YouTube CC...")
+    path, title = fetch_youtube_cc_video(keyword)
+    if path:
+        return path, title or keyword
 
     # 4. Wikimedia Commons — CC licensed (webm auto-converted to mp4)
     print(f"      Trying Wikimedia...")
@@ -2195,7 +2238,7 @@ def run_agent():
 
         if video_path:
             reel_path = process_reel(video_path, headline, summary, narration,
-                                     source=news.get("source", ""))
+                                     source=(VIDEO_CREDIT or news.get("source", "")))
             try:
                 os.remove(video_path)
             except:
