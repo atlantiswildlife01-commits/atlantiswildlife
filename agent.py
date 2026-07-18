@@ -1869,16 +1869,21 @@ def process_reel(video_path: str, headline: str, summary: str, narration: str = 
             ov_draw.text((PAD_LEFT, y), line, font=font_body, fill=(200, 240, 200, 240))
             y += 44
 
-        date_str = datetime.now().strftime("%d %b %Y")
-        ov_draw.text((PAD_LEFT, FRAME_H - 44),
-                     f"{CHANNEL_HANDLE}  •  {date_str}",
-                     font=font_foot, fill=(130, 210, 140, 210))
+        # Instagram ka UI bottom ~250px dhak deta hai — isliye handle/date/source TOP-RIGHT pe
+        def text_shadow(xy, txt, font, fill):
+            x, y_ = xy
+            ov_draw.text((x + 2, y_ + 2), txt, font=font, fill=(0, 0, 0, 200))
+            ov_draw.text((x, y_), txt, font=font, fill=fill)
+
+        date_str  = datetime.now().strftime("%d %b %Y")
+        meta_text = f"{CHANNEL_HANDLE}  •  {date_str}"
+        meta_w    = ov_draw.textlength(meta_text, font=font_foot)
+        text_shadow((FRAME_W - meta_w - 40, 70), meta_text, font_foot, (255, 255, 255, 235))
         if source:
             font_src = get_font(22)
             src_text = f"© {source}"
             src_w    = ov_draw.textlength(src_text, font=font_src)
-            ov_draw.text((FRAME_W - src_w - PAD_RIGHT - 10, FRAME_H - 40),
-                         src_text, font=font_src, fill=(160, 220, 160, 180))
+            text_shadow((FRAME_W - src_w - 40, 108), src_text, font_src, (220, 245, 220, 220))
 
         overlay.save(overlay_png, "PNG")
 
