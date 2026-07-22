@@ -50,6 +50,7 @@ jobs:
           PIXABAY_API_KEY:                  ${{ secrets.PIXABAY_API_KEY }}
           NPS_API_KEY:                      ${{ secrets.NPS_API_KEY }}
           GH_PAT:                           ${{ secrets.GH_PAT }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
           GITHUB_REPOSITORY:                ${{ github.repository }}
           GITHUB_TOKEN:                     ${{ secrets.GITHUB_TOKEN }}
           WILDLIFE_INSTAGRAM_ACCESS_TOKEN:  ${{ secrets.WILDLIFE_INSTAGRAM_ACCESS_TOKEN }}
