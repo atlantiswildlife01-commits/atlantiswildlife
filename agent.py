@@ -821,17 +821,36 @@ def _download_video(url: str, prefix: str, min_size: int = 500_000) -> str | Non
     return None
 
 
+def _yt_cookies_file() -> str | None:
+    """YT_COOKIES secret ko file mein likho — CI ke datacenter IP se YouTube warna block karta hai"""
+    val = os.getenv("YT_COOKIES", "").strip()
+    if not val:
+        return None
+    path = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
+    try:
+        if not os.path.exists(path):
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(val)
+        return path
+    except Exception:
+        return None
+
+
 def _yt_dlp(url: str, prefix: str) -> str | None:
-    """Download via yt-dlp (for NPS/NOAA YouTube links)"""
+    """Download via yt-dlp (for NPS/NOAA/YouTube CC links)"""
     import subprocess
     try:
         path = os.path.join(tempfile.gettempdir(), f"{prefix}_{int(time.time())}.mp4")
-        result = subprocess.run([
+        cmd = [
             "yt-dlp", url,
             "-f", "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best",
             "--merge-output-format", "mp4",
             "-o", path, "--no-playlist", "--quiet", "--no-warnings",
-        ], capture_output=True, timeout=120)
+        ]
+        ck = _yt_cookies_file()
+        if ck:
+            cmd += ["--cookies", ck]
+        result = subprocess.run(cmd, capture_output=True, timeout=120)
         if result.returncode == 0 and os.path.exists(path) and os.path.getsize(path) > 500_000:
             print(f"      yt-dlp OK: {os.path.getsize(path)//1024//1024}MB")
             return path
@@ -1096,11 +1115,12 @@ def fetch_youtube_cc_video(keyword: str) -> tuple[str | None, str]:
         # sp=EgIwAQ%253D%253D = YouTube ka Creative Commons license filter
         url = ("https://www.youtube.com/results?search_query="
                + urllib.parse.quote(keyword) + "&sp=EgIwAQ%253D%253D")
-        r = subprocess.run(
-            ["yt-dlp", url, "--flat-playlist", "--playlist-items", "1-8",
-             "-J", "--quiet", "--no-warnings"],
-            capture_output=True, text=True, timeout=60
-        )
+        search_cmd = ["yt-dlp", url, "--flat-playlist", "--playlist-items", "1-8",
+                      "-J", "--quiet", "--no-warnings"]
+        ck = _yt_cookies_file()
+        if ck:
+            search_cmd += ["--cookies", ck]
+        r = subprocess.run(search_cmd, capture_output=True, text=True, timeout=60)
         entries = json.loads(r.stdout or "{}").get("entries", []) or []
         random.shuffle(entries)
         for e in entries:
