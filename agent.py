@@ -57,6 +57,27 @@ def _pick_groq_model() -> str:
 GROQ_MODEL = _pick_groq_model()
 print(f"🧠 Groq model: {GROQ_MODEL}")
 
+
+def _groq_complete(messages, max_tokens=500, **kwargs):
+    """Groq call — rate limit (429) pe agle model pe switch karo.
+    Groq ke daily token limits PER MODEL hote hain (saare agents ek hi key share
+    karte hain, isliye 70b ka limit din mein khatam ho jata hai)."""
+    client = Groq(api_key=GROQ_API_KEY)
+    models = [GROQ_MODEL] + [m for m in GROQ_MODEL_PREFERENCES if m != GROQ_MODEL]
+    last_err = None
+    for m in models:
+        try:
+            return client.chat.completions.create(
+                model=m, max_tokens=max_tokens, messages=messages, **kwargs
+            )
+        except Exception as e:
+            last_err = e
+            if "rate_limit" in str(e) or "429" in str(e):
+                print(f"      {m} rate-limited — agla model try kar raha hoon")
+                continue
+            raise
+    raise last_err
+
 CHANNEL_HANDLE  = "@atlantis_wildlife"
 POST_DELAY      = 20
 CAROUSEL_SLIDES = 1
@@ -541,9 +562,7 @@ def smart_plan(all_news: list[dict], count: int = CAROUSEL_SLIDES) -> list[dict]
         for i, n in enumerate(all_news[:12])
     ])
     try:
-        client = Groq(api_key=GROQ_API_KEY)
-        resp = client.chat.completions.create(
-            model=GROQ_MODEL,
+        resp = _groq_complete(
             max_tokens=500,
             messages=[{"role": "user", "content": f"""
 Ye wildlife/nature content hai. Visual + emotional + viral potential score do (1-10):
@@ -587,7 +606,6 @@ TOP {count} choose karo — most visually striking + emotionally engaging. JSON:
 # --- Caption Generation -------------------------------------------------------
 def generate_caption(news_item: dict) -> dict:
     print(f"\n[Caption] Generate kar raha hoon...")
-    client = Groq(api_key=GROQ_API_KEY)
     import random as _rand
     caption_styles = [
         "STORYTELLER: Ek choti si story ki tarah likho — 'Ek baar ki baat hai, jungle mein...' Emotional connection banao.",
@@ -628,8 +646,7 @@ JSON:
 }}
 """
     try:
-        message = client.chat.completions.create(
-            model=GROQ_MODEL,
+        message = _groq_complete(
             max_tokens=900,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"}
@@ -1510,9 +1527,7 @@ def generate_narration(news_item: dict, headline: str, summary: str,
         opening_style = narration_styles[style_idx]
 
     try:
-        client = Groq(api_key=GROQ_API_KEY)
-        resp = client.chat.completions.create(
-            model=GROQ_MODEL,
+        resp = _groq_complete(
             max_tokens=420,
             messages=[{"role": "user", "content": f"""
 Tu National Geographic / BBC Earth ke Hindi narrator ki tarah bol.
