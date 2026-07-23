@@ -1364,9 +1364,15 @@ def _queue_repo_token():
     return (tok, repo) if (tok and repo) else (None, None)
 
 
-def fetch_queued_video() -> tuple[str | None, str]:
-    """Laptop ne YouTube CC se jo footage queue ki hai wahan se lo. Purane sources se pehle."""
+_QUEUE_STOP = {"the", "a", "an", "of", "in", "on", "and", "wild", "wildlife",
+               "animal", "nature", "video", "footage", "hd", "4k"}
+
+
+def fetch_queued_video(want_kw: str = "") -> tuple[str | None, str]:
+    """Queue se KEYWORD-MATCHED video lo. Match na ho to None → Pexels (keyword-matched) use hoga.
+    Isse video hamesha text/topic se match karti hai (warna panda-news pe tiger-video aa jati thi)."""
     global LAST_QUEUE_ITEM, VIDEO_CREDIT
+    import re as _re
     tok, repo = _queue_repo_token()
     if not tok:
         return None, ""
@@ -1376,32 +1382,48 @@ def fetch_queued_video() -> tuple[str | None, str]:
                          headers=hdr, timeout=30)
         if r.status_code != 200:
             return None, ""
-        vids = sorted([f for f in r.json() if f["name"].endswith(".mp4")],
-                      key=lambda f: f["name"])   # sabse purani pehle
-        if not vids:
+        files = r.json()
+        mp4s  = {f["name"]: f for f in files if f["name"].endswith(".mp4")}
+        jsons = {f["name"]: f for f in files if f["name"].endswith(".json")}
+        if not mp4s:
             return None, ""
-        item = vids[0]
+
+        want = {w for w in _re.findall(r"[a-z]+", want_kw.lower())
+                if len(w) > 2 and w not in _QUEUE_STOP}
+
+        best, best_score = None, -1
+        for name in sorted(mp4s):   # tie pe sabse purani
+            meta = {}
+            jf = jsons.get(name.rsplit(".", 1)[0] + ".json")
+            if jf:
+                try:
+                    meta = requests.get(jf["download_url"], timeout=20).json()
+                except Exception:
+                    pass
+            text   = f"{meta.get('keyword','')} {meta.get('title','')}".lower()
+            twords = {w for w in _re.findall(r"[a-z]+", text) if len(w) > 2}
+            score  = len(want & twords) if want else 0
+            if score > best_score:
+                best, best_score = (name, mp4s[name], meta), score
+
+        # keyword diya hai to match zaroori — warna queue skip (Pexels sahi video dega)
+        if want and best_score < 1:
+            print("      [Queue] keyword match nahi — Pexels use karega")
+            return None, ""
+
+        name, item, meta = best
         dl = requests.get(item["download_url"], timeout=180, stream=True)
-        path = os.path.join(tempfile.gettempdir(), f"queued_{item['name']}")
+        path = os.path.join(tempfile.gettempdir(), f"queued_{name}")
         with open(path, "wb") as f:
             for chunk in dl.iter_content(8192):
                 f.write(chunk)
         if os.path.getsize(path) < 200_000:
             os.remove(path)
             return None, ""
-        LAST_QUEUE_ITEM = item["name"]
-        title = ""
-        try:
-            stem = item["name"].rsplit(".", 1)[0]
-            mr = requests.get(f"https://raw.githubusercontent.com/{repo}/main/{QUEUE_DIR}/{stem}.json",
-                              timeout=20)
-            if mr.status_code == 200:
-                meta = mr.json()
-                title = meta.get("title", "")
-                VIDEO_CREDIT = meta.get("credit", "") or VIDEO_CREDIT
-        except Exception:
-            pass
-        print(f"      [Queue] {item['name']} — {title[:50]}")
+        LAST_QUEUE_ITEM = name
+        title = meta.get("title", "")
+        VIDEO_CREDIT = meta.get("credit", "") or VIDEO_CREDIT
+        print(f"      [Queue] MATCH (score {best_score}): {title[:50]}")
         return path, title
     except Exception as e:
         print(f"      [Queue] error: {e}")
@@ -1454,8 +1476,8 @@ def fetch_wildlife_video(keyword: str, source: str = "", article_url: str = "") 
     LAST_QUEUE_ITEM = ""    # queue tracking bhi reset
     print(f"\n      [Video] '{keyword}' | source: {source}")
 
-    # 0. Queue — laptop se aayi YouTube CC footage (purane sources se pehle)
-    qpath, qtitle = fetch_queued_video()
+    # 0. Queue — laptop se aayi YouTube CC footage (keyword-matched, purane sources se pehle)
+    qpath, qtitle = fetch_queued_video(keyword)
     if qpath:
         return qpath, qtitle or keyword
 
