@@ -1882,6 +1882,60 @@ def generate_tts(text: str, out_path: str) -> bool:
     return False
 
 
+def _ass_time(t: float) -> str:
+    h = int(t // 3600); m = int((t % 3600) // 60); s = t % 60
+    return f"{h:d}:{m:02d}:{s:05.2f}"
+
+
+def make_subtitles(narration: str, duration: float, ass_path: str,
+                   play_w: int = 1080, play_h: int = 1920, margin_v: int = 470) -> bool:
+    """Narration → ASS subtitles, audio duration pe synced. YouTube-style captions (retention++)."""
+    import re as _re
+    clean = _re.sub(r'[*_`#~\[\]{}|<>\\]', '', narration or '').strip()
+    if not clean:
+        return False
+    raw = _re.split(r'(?<=[।.!?])\s+|\.\.\.', clean)
+    phrases = []
+    for seg in raw:
+        seg = seg.strip()
+        if not seg:
+            continue
+        w = seg.split()
+        if len(w) <= 6:
+            phrases.append(seg)
+        else:
+            for i in range(0, len(w), 5):
+                phrases.append(" ".join(w[i:i+5]))
+    if not phrases:
+        return False
+    tot = sum(len(p.split()) for p in phrases) or 1
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: {play_w}
+PlayResY: {play_h}
+WrapStyle: 0
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Sub,Arial,58,&H00FFFFFF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,4,2,2,60,60,{margin_v},1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    try:
+        t = 0.0
+        with open(ass_path, "w", encoding="utf-8") as f:
+            f.write(header)
+            for p in phrases:
+                share = (len(p.split()) / tot) * duration
+                st, en = t, min(t + share, duration)
+                t = en
+                f.write(f"Dialogue: 0,{_ass_time(st)},{_ass_time(en)},Sub,,0,0,0,,{p}\n")
+        return True
+    except Exception:
+        return False
+
+
 def process_reel(video_path: str, headline: str, summary: str, narration: str = "", source: str = "") -> str | None:
     """Wildlife video ko Reel format mein convert karo"""
     import subprocess
@@ -2030,31 +2084,37 @@ def process_reel(video_path: str, headline: str, summary: str, narration: str = 
 
         overlay.save(overlay_png, "PNG")
 
+        # Subtitles ASS — narration se, audio duration pe synced
+        ass_path  = os.path.join(tmp, "subs.ass")
+        have_subs = has_audio and make_subtitles(tts_text, reel_dur, ass_path)
+
         # Step 3: FFmpeg combine — audio already generated in Step 1
         common = [
             "-c:v", "libx264", "-profile:v", "high", "-level:v", "4.0",
             "-pix_fmt", "yuv420p", "-preset", "fast", "-crf", "22",
             "-movflags", "+faststart"
         ]
-        if has_audio:
-            result = subprocess.run([
-                "ffmpeg", "-y",
-                "-i", base_path, "-i", overlay_png, "-i", audio_path,
-                "-filter_complex",
-                "[0:v][1:v]overlay=0:0[vout];[2:a]volume=1.5[aout]",
-                "-map", "[vout]", "-map", "[aout]",
-                "-c:a", "aac", "-b:a", "128k",
-                *common, out_path   # no -shortest, no atrim
-            ], capture_output=True, timeout=180)
-        else:
-            result = subprocess.run([
-                "ffmpeg", "-y",
-                "-i", base_path, "-i", overlay_png,
-                "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
-                "-map", "[out]", *common, out_path
-            ], capture_output=True, timeout=180)
 
-        for p in [base_path, overlay_png, audio_path]:
+        def _run(with_subs: bool):
+            if has_audio:
+                vchain = "[0:v][1:v]overlay=0:0"
+                vchain += "[vo];[vo]subtitles=subs.ass[vout]" if with_subs else "[vout]"
+                return subprocess.run(
+                    ["ffmpeg", "-y", "-i", base_path, "-i", overlay_png, "-i", audio_path,
+                     "-filter_complex", vchain + ";[2:a]volume=1.7,loudnorm=I=-13:TP=-1.5[aout]",
+                     "-map", "[vout]", "-map", "[aout]", "-c:a", "aac", "-b:a", "160k",
+                     *common, out_path], capture_output=True, timeout=200, cwd=tmp)
+            return subprocess.run(
+                ["ffmpeg", "-y", "-i", base_path, "-i", overlay_png,
+                 "-filter_complex", "[0:v][1:v]overlay=0:0[out]",
+                 "-map", "[out]", *common, out_path], capture_output=True, timeout=180, cwd=tmp)
+
+        result = _run(have_subs)
+        if result.returncode != 0 and have_subs:
+            print("      Subtitles burn fail — bina subs retry")
+            result = _run(False)
+
+        for p in [base_path, overlay_png, audio_path, ass_path]:
             try:
                 os.remove(p)
             except:
