@@ -77,7 +77,8 @@
     "skjære — wildlife observation",
     "gråmåke — wildlife observation",
     "gulspurv — wildlife observation",
-    "flaggspett — wildlife observation"
+    "flaggspett — wildlife observation",
+    "rødvingetrost — wildlife observation"
   ],
   "images": [
     "https://inaturalist-open-data.s3.amazonaws.com/photos/7342766/large.jpg",
@@ -158,7 +159,8 @@
     "https://www.miljolare.no/innsendt/bilder/aktivitet/1323626/69565f26d797a/gramaker.jpg",
     "https://www.miljolare.no/innsendt/bilder/68834/97366/695a41c62cd0c/20260104_105641.jpg",
     "https://www.miljolare.no/innsendt/bilder/68834/97364/69590a798e886/1000063596.jpg",
-    "https://www.miljolare.no/innsendt/bilder/aktivitet/1323740/6957a4fe58e0a/20260102_113606.jpg"
+    "https://www.miljolare.no/innsendt/bilder/aktivitet/1323740/6957a4fe58e0a/20260102_113606.jpg",
+    "https://www.miljolare.no/innsendt/bilder/aktivitet/1323701/69569c4c4c05c/20260101_152836.jpg"
   ],
-  "updated": "2026-08-17T16:02:17.403574"
+  "updated": "2026-08-18T02:15:51.526828"
 }
