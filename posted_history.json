@@ -82,7 +82,8 @@
     "kråke — wildlife observation",
     "common woodshrike — wildlife observation",
     "kjøttmeis — wildlife observation",
-    "svarttrost — wildlife observation"
+    "svarttrost — wildlife observation",
+    "rødstrupe — wildlife observation"
   ],
   "images": [
     "https://inaturalist-open-data.s3.amazonaws.com/photos/7342766/large.jpg",
@@ -169,7 +170,8 @@
     "https://xeno-canto.org/sounds/spectrograms/PCTXEPPOZD/165501/colour.png",
     "https://www.miljolare.no/innsendt/bilder/39550/97360/6957f2dbd07b7/videocapture_20260102-165954.jpg",
     "https://www.miljolare.no/innsendt/bilder/39550/97360/6957f2a05a76b/videocapture_20260102-171638.jpg",
-    "https://www.miljolare.no/innsendt/bilder/39550/97360/6957f31577202/videocapture_20260102-105947.jpg"
+    "https://www.miljolare.no/innsendt/bilder/39550/97360/6957f31577202/videocapture_20260102-105947.jpg",
+    "https://www.miljolare.no/innsendt/bilder/39550/97360/6957f2fc2e0dc/videocapture_20260102-171324.jpg"
   ],
-  "updated": "2026-08-19T03:28:22.281198"
+  "updated": "2026-08-19T04:22:07.687235"
 }
